@@ -1,2 +1,18 @@
 version: '3.7'
 
+services:
+  db:
+    image: 'postgres:13.1-alpine'
+    container_name: db
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=wz_user
+    networks:
+      - dock-db-test
+networks:
+  dock-db-test:
+    external: true
+

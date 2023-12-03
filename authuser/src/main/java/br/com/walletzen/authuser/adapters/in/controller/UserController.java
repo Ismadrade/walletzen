@@ -5,6 +5,7 @@ import br.com.walletzen.authuser.adapters.in.controller.request.UserRequest;
 import br.com.walletzen.authuser.application.ports.in.InsertUserInputPort;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,7 +22,7 @@ public class UserController {
     private UserMapper userMapper;
 
     @PostMapping
-    public ResponseEntity<Void> insert(@RequestBody UserRequest userRequest){
+    public ResponseEntity<Void> insert(@RequestBody @Validated UserRequest userRequest){
         insertUserInputPort.insert(userMapper.toUser(userRequest));
         return ResponseEntity.ok().build();
     }

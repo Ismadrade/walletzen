@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+
+  product-db:
+    image: postgres:latest
+    container_name: wz-user-db
+    networks:
+      - wallet-zen
+    environment:
+      - POSTGRES_DB=wz-user-db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5433:5432"
+
+networks:
+  wallet-zen:
+    driver: bridge

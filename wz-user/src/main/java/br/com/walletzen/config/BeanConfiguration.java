@@ -14,4 +14,6 @@ public class BeanConfiguration {
     UserServicePort notificationServicePortImpl(UserPersistencePort persistence) {
         return new UserServicePort(persistence);
     }
+
+
 }

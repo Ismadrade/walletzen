@@ -1,5 +1,6 @@
 package br.com.walletzen.adapter.outbound.persistence;
 
+import br.com.walletzen.adapter.mapper.UserMapper;
 import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 import org.springframework.stereotype.Component;
@@ -12,18 +13,20 @@ public class UserPersistencePortImpl implements UserPersistencePort {
 
     private final UserJpaRepository userJpaRepository;
 
-    public UserPersistencePortImpl(UserJpaRepository userJpaRepository) {
+    private final UserMapper userMapper;
+
+    public UserPersistencePortImpl(UserJpaRepository userJpaRepository, UserMapper userMapper) {
         this.userJpaRepository = userJpaRepository;
+        this.userMapper = userMapper;
     }
 
 
     @Override
     public List<User> findAll() {
-        return userJpaRepository.findAll().stream().map(userEntity -> new User(
-                userEntity.getId(), userEntity.getName(),
-                userEntity.getCpf(), userEntity.getEmail(),
-                userEntity.getBirthDate().toString(), userEntity.getCreatedAt().toString(),
-                userEntity.getUpdatedAt().toString(), userEntity.getRecordStatus()
-        )).collect(Collectors.toList());
+        return userJpaRepository
+                .findAll()
+                .stream()
+                .map(userMapper::toDomain)
+                .collect(Collectors.toList());
     }
 }

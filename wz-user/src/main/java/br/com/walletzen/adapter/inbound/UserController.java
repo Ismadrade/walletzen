@@ -1,7 +1,8 @@
 package br.com.walletzen.adapter.inbound;
 
-import br.com.walletzen.core.domain.User;
-import br.com.walletzen.core.port.input.GetAllUsersUseCase;
+import br.com.walletzen.adapter.dto.UserDTO;
+import br.com.walletzen.adapter.mapper.UserMapper;
+import br.com.walletzen.core.service.UserServicePort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,14 +15,17 @@ import java.util.List;
 @RequestMapping("/users")
 public class UserController {
 
-    private final GetAllUsersUseCase getAllUsersUseCase;
+    private final UserServicePort userServicePort;
+    private final UserMapper userMapper;
 
-    public UserController(GetAllUsersUseCase getAllUsersUseCase) {
-        this.getAllUsersUseCase = getAllUsersUseCase;
+    public UserController(UserServicePort userServicePort, UserMapper userMapper) {
+        this.userServicePort = userServicePort;
+        this.userMapper = userMapper;
     }
 
     @GetMapping
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.status(HttpStatus.OK).body(getAllUsersUseCase.getAllUsers());
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        return ResponseEntity.status(HttpStatus.OK)
+                .body(userServicePort.getAllUsers().stream().map(userMapper::toRecord).toList());
     }
 }

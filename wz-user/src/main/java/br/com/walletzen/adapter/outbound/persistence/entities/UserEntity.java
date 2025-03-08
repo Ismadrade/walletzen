@@ -6,7 +6,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.UuidGenerator;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -18,7 +20,8 @@ import java.util.UUID;
 public class UserEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue
+    @UuidGenerator
     @Column(name = "ID", updatable = false, nullable = false)
     private UUID id;
 
@@ -32,7 +35,7 @@ public class UserEntity {
     private String email;
 
     @Column(name = "BIRTH_DATE")
-    private LocalDateTime birthDate;
+    private LocalDate birthDate;
 
     @Column(name = "CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -42,4 +45,17 @@ public class UserEntity {
 
     @Column(name = "RECORD_STATUS")
     private Boolean recordStatus;
+
+    @PrePersist
+    public void prePersist(){
+        var now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+        recordStatus = true;
+    }
+
+    @PreUpdate
+    public void preUpdate(){
+        updatedAt = LocalDateTime.now();
+    }
 }

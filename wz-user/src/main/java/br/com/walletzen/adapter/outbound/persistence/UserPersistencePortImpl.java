@@ -29,4 +29,9 @@ public class UserPersistencePortImpl implements UserPersistencePort {
                 .map(userMapper::toDomain)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public void save(User user) {
+        userJpaRepository.save(userMapper.toEntity(user));
+    }
 }

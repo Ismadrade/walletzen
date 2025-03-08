@@ -6,4 +6,5 @@ import java.util.List;
 
 public interface UserPersistencePort {
     List<User> findAll();
+    void save(User user);
 }

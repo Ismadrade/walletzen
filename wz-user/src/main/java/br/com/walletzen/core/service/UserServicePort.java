@@ -5,10 +5,9 @@ import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.port.input.CreateUserUseCase;
 import br.com.walletzen.core.port.input.EditUserUseCase;
 import br.com.walletzen.core.port.input.GetAllUsersUseCase;
-import br.com.walletzen.core.port.input.dto.PageRequestDTO;
+import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 
-import java.util.List;
 import java.util.UUID;
 
 public class UserServicePort implements GetAllUsersUseCase, CreateUserUseCase, EditUserUseCase {

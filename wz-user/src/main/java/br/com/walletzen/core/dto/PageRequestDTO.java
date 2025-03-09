@@ -1,4 +1,4 @@
-package br.com.walletzen.core.port.input.dto;
+package br.com.walletzen.core.dto;
 
 public class PageRequestDTO {
     private int page;

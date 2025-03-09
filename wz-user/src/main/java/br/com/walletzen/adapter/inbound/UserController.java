@@ -5,16 +5,14 @@ import br.com.walletzen.adapter.dto.UserResponse;
 import br.com.walletzen.adapter.mapper.UserMapper;
 import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
-import br.com.walletzen.core.port.input.dto.PageRequestDTO;
+import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.service.UserServicePort;
-import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/users")

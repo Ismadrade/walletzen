@@ -1,8 +1,16 @@
 package br.com.walletzen.adapter.outbound.persistence;
 
 import br.com.walletzen.adapter.mapper.UserMapper;
+import br.com.walletzen.adapter.outbound.persistence.entities.UserEntity;
+
+import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
+import br.com.walletzen.core.port.input.dto.PageRequestDTO;
 import br.com.walletzen.core.port.output.UserPersistencePort;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -23,12 +31,26 @@ public class UserPersistencePortImpl implements UserPersistencePort {
 
 
     @Override
-    public List<User> findAll() {
-        return userJpaRepository
-                .findAll()
-                .stream()
+    public PageInfo<User> findAll(PageRequestDTO pageRequestDTO) {
+
+        Pageable pageable = PageRequest.of(pageRequestDTO.getPage(), pageRequestDTO.getSize(),
+                Sort.by(Sort.Direction.fromString(pageRequestDTO.getDirection()), pageRequestDTO.getSort()));
+
+        Page<UserEntity> userPage = userJpaRepository.findAll(pageable);
+
+        List<User> users = userPage.getContent().stream()
                 .map(userMapper::toDomain)
                 .collect(Collectors.toList());
+
+        return new PageInfo<>(
+                users,
+                userPage.getNumber(),
+                userPage.getSize(),
+                userPage.getTotalElements(),
+                userPage.getTotalPages(),
+                userPage.isLast()
+        );
+
     }
 
     @Override

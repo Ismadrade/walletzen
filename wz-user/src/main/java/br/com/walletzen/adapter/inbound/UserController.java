@@ -3,13 +3,18 @@ package br.com.walletzen.adapter.inbound;
 import br.com.walletzen.adapter.dto.UserRequest;
 import br.com.walletzen.adapter.dto.UserResponse;
 import br.com.walletzen.adapter.mapper.UserMapper;
+import br.com.walletzen.core.domain.PageInfo;
+import br.com.walletzen.core.domain.User;
+import br.com.walletzen.core.port.input.dto.PageRequestDTO;
 import br.com.walletzen.core.service.UserServicePort;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/users")
@@ -24,9 +29,28 @@ public class UserController {
     }
 
     @GetMapping
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
+    public ResponseEntity<PageInfo<UserResponse>> getAllUsers(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "name") String sort,
+            @RequestParam(defaultValue = "ASC") String direction
+    ) {
+        PageRequestDTO pageRequestDTO = new PageRequestDTO(page, size, sort, direction);
+        PageInfo<User> userPageInfo  = userServicePort.getAllUsers(pageRequestDTO);
+        List<UserResponse> userResponses = userPageInfo.getContent()
+                .stream()
+                .map(userMapper::toRecord)
+                .toList();
+
         return ResponseEntity.status(HttpStatus.OK)
-                .body(userServicePort.getAllUsers().stream().map(userMapper::toRecord).toList());
+                .body(new PageInfo<>(
+                        userResponses,
+                        userPageInfo.getPageNumber(),
+                        userPageInfo.getPageSize(),
+                        userPageInfo.getTotalElements(),
+                        userPageInfo.getTotalPages(),
+                        userPageInfo.isLast()
+                ));
     }
 
     @PostMapping

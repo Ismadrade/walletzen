@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/users")
@@ -32,5 +33,11 @@ public class UserController {
     public ResponseEntity createUser(@RequestBody UserRequest userRequest) {
         userServicePort.createUser(userMapper.toDomain(userRequest));
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PutMapping("{userId}")
+    public ResponseEntity editUser(@PathVariable("userId") UUID userId, @RequestBody UserRequest userRequest) throws Exception {
+        userServicePort.editUser(userId, userMapper.toDomain(userRequest));
+        return ResponseEntity.status(HttpStatus.OK).build();
     }
 }

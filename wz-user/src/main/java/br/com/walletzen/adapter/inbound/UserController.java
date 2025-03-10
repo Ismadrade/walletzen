@@ -51,6 +51,11 @@ public class UserController {
                 ));
     }
 
+    @GetMapping("{userId}")
+    public ResponseEntity<UserResponse> getUserById(@PathVariable("userId") UUID userId) throws Exception {
+        return ResponseEntity.status(HttpStatus.OK).body(userMapper.toRecord(userServicePort.getUserById(userId)));
+    }
+
     @PostMapping
     public ResponseEntity createUser(@RequestBody UserRequest userRequest) {
         userServicePort.createUser(userMapper.toDomain(userRequest));

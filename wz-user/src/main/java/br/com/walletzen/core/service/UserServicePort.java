@@ -4,13 +4,13 @@ import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.port.input.CreateUserUseCase;
 import br.com.walletzen.core.port.input.EditUserUseCase;
-import br.com.walletzen.core.port.input.GetAllUsersUseCase;
+import br.com.walletzen.core.port.input.GetUserUseCase;
 import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 
 import java.util.UUID;
 
-public class UserServicePort implements GetAllUsersUseCase, CreateUserUseCase, EditUserUseCase {
+public class UserServicePort implements GetUserUseCase, CreateUserUseCase, EditUserUseCase {
 
     private final UserPersistencePort userRepository;
 
@@ -21,6 +21,11 @@ public class UserServicePort implements GetAllUsersUseCase, CreateUserUseCase, E
     @Override
     public PageInfo<User> getAllUsers(PageRequestDTO pageRequestDTO) {
         return userRepository.findAll(pageRequestDTO);
+    }
+
+    @Override
+    public User getUserById(UUID userId) throws Exception {
+        return userRepository.findById(userId);
     }
 
     @Override

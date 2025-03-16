@@ -2,6 +2,8 @@ package br.com.walletzen.core.service;
 
 import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
+import br.com.walletzen.core.exception.UserFieldAlreadyExistsException;
+import br.com.walletzen.core.exception.UserNotFoundException;
 import br.com.walletzen.core.port.input.CreateUserUseCase;
 import br.com.walletzen.core.port.input.EditUserUseCase;
 import br.com.walletzen.core.port.input.GetUserUseCase;
@@ -24,18 +26,34 @@ public class UserServicePort implements GetUserUseCase, CreateUserUseCase, EditU
     }
 
     @Override
-    public User getUserById(UUID userId) throws Exception {
+    public User getUserById(UUID userId) throws UserNotFoundException {
         return userRepository.findById(userId);
     }
 
     @Override
     public void createUser(User user) {
+
+        if (userRepository.existsByEmail(user.getEmail())) {
+            throw new UserFieldAlreadyExistsException("email", user.getEmail());
+        }
+        if (userRepository.existsByCpf(user.getCpf())) {
+            throw new UserFieldAlreadyExistsException("CPF", user.getCpf());
+        }
+
         userRepository.save(user);
     }
 
     @Override
-    public void editUser(UUID userId, User user) throws Exception {
+    public void editUser(UUID userId, User user) throws UserNotFoundException {
+        if (userRepository.existsByEmail(user.getEmail())) {
+            throw new UserFieldAlreadyExistsException("email", user.getEmail());
+        }
+        if (userRepository.existsByCpf(user.getCpf())) {
+            throw new UserFieldAlreadyExistsException("CPF", user.getCpf());
+        }
+
         User existingUser = userRepository.findById(userId);
+
         existingUser.setEmail(user.getEmail());
         existingUser.setCpf(user.getCpf());
         existingUser.setBirthDate(user.getBirthDate());

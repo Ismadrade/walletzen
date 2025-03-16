@@ -6,6 +6,7 @@ import br.com.walletzen.adapter.mapper.UserMapper;
 import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.dto.PageRequestDTO;
+import br.com.walletzen.core.exception.UserNotFoundException;
 import br.com.walletzen.core.service.UserServicePort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +53,7 @@ public class UserController {
     }
 
     @GetMapping("{userId}")
-    public ResponseEntity<UserResponse> getUserById(@PathVariable("userId") UUID userId) throws Exception {
+    public ResponseEntity<UserResponse> getUserById(@PathVariable("userId") UUID userId) {
         return ResponseEntity.status(HttpStatus.OK).body(userMapper.toRecord(userServicePort.getUserById(userId)));
     }
 
@@ -63,7 +64,7 @@ public class UserController {
     }
 
     @PutMapping("{userId}")
-    public ResponseEntity editUser(@PathVariable("userId") UUID userId, @RequestBody UserRequest userRequest) throws Exception {
+    public ResponseEntity editUser(@PathVariable("userId") UUID userId, @RequestBody UserRequest userRequest) {
         userServicePort.editUser(userId, userMapper.toDomain(userRequest));
         return ResponseEntity.status(HttpStatus.OK).build();
     }

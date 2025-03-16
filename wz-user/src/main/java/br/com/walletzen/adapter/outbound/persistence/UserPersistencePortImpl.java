@@ -6,6 +6,7 @@ import br.com.walletzen.adapter.outbound.persistence.entities.UserEntity;
 import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.dto.PageRequestDTO;
+import br.com.walletzen.core.exception.UserNotFoundException;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -14,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -59,7 +61,22 @@ public class UserPersistencePortImpl implements UserPersistencePort {
     }
 
     @Override
-    public User findById(UUID id) throws Exception {
-        return userMapper.toDomain(userJpaRepository.findById(id).orElseThrow(() -> new Exception("User Not Found")));
+    public User findById(UUID id) throws UserNotFoundException {
+        return userMapper.toDomain(userJpaRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id)));
+    }
+
+    @Override
+    public boolean existsByEmail(String email) {
+        return userJpaRepository.existsByEmail(email);
+    }
+
+    @Override
+    public boolean existsByCpf(String cpf) {
+        return userJpaRepository.existsByCpf(cpf);
+    }
+
+    @Override
+    public boolean existsById(UUID userId) {
+        return userJpaRepository.existsById(userId);
     }
 }

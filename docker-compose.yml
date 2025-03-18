@@ -2,7 +2,7 @@ version: '3'
 
 services:
 
-  product-db:
+  wz-user-db:
     image: postgres:latest
     container_name: wz-user-db
     networks:
@@ -13,6 +13,18 @@ services:
       - POSTGRES_PASSWORD=postgres
     ports:
       - "5433:5432"
+
+  wz-financial-db:
+    image: postgres:latest
+    container_name: wz-financial-db
+    networks:
+      - wallet-zen
+    environment:
+      - POSTGRES_DB=wz-financial-db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5434:5432"      
 
 networks:
   wallet-zen:

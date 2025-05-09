@@ -67,4 +67,10 @@ public class UserController {
         userServicePort.editUser(userId, userMapper.toDomain(userRequest));
         return ResponseEntity.status(HttpStatus.OK).build();
     }
+
+    @DeleteMapping("{userId}")
+    public ResponseEntity deleteUser(@PathVariable("userId") UUID userId) throws Exception {
+        userServicePort.deleteUser(userId);
+        return ResponseEntity.status(HttpStatus.OK).build();
+    }
 }

@@ -11,6 +11,10 @@ eureka:
 spring:
   application:
     name: wz-user
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKER:localhost:9092}
+    topic:
+      wz-user-deleted: wz-user-deleted
 
   datasource:
     driver-class-name: org.postgresql.Driver

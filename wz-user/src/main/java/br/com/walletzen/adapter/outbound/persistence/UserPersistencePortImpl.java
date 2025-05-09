@@ -38,7 +38,7 @@ public class UserPersistencePortImpl implements UserPersistencePort {
         Pageable pageable = PageRequest.of(pageRequestDTO.getPage(), pageRequestDTO.getSize(),
                 Sort.by(Sort.Direction.fromString(pageRequestDTO.getDirection()), pageRequestDTO.getSort()));
 
-        Page<UserEntity> userPage = userJpaRepository.findAll(pageable);
+        Page<UserEntity> userPage = userJpaRepository.findAllActiveUsers(pageable);
 
         List<User> users = userPage.getContent().stream()
                 .map(userMapper::toDomain)
@@ -62,7 +62,7 @@ public class UserPersistencePortImpl implements UserPersistencePort {
 
     @Override
     public User findById(UUID id) throws UserNotFoundException {
-        return userMapper.toDomain(userJpaRepository.findById(id).orElseThrow(() -> new UserNotFoundException(id)));
+        return userMapper.toDomain(userJpaRepository.findUserById(id).orElseThrow(() -> new UserNotFoundException(id)));
     }
 
     @Override

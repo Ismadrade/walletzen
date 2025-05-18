@@ -18,15 +18,16 @@ public class User implements Serializable {
 
 
 
-    public User(UUID id, String name, String cpf, String email, String birthDate, String createdAt, String updatedAt, boolean recordStatus) {
+    public User(UUID id, String name, String cpf, String email, String birthDate, boolean recordStatus) {
         this.id = id;
         this.name = name;
         this.cpf = cpf;
         this.email = email;
         this.birthDate = birthDate;
-        this.createdAt = createdAt;
-        this.updatedAt = updatedAt;
         this.recordStatus = recordStatus;
+    }
+
+    public User() {
     }
 
     public UUID getId() {

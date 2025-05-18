@@ -2,10 +2,7 @@ package br.com.walletzen.adapter.outbound.persistence.entities;
 
 
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDate;
@@ -15,6 +12,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "WZ_USER")
 @Getter@Setter
+@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserEntity {

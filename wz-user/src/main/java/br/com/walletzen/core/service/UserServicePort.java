@@ -50,17 +50,13 @@ public class UserServicePort implements GetUserUseCase, CreateUserUseCase, EditU
 
     @Override
     public void editUser(UUID userId, User user) throws UserNotFoundException {
-        if (userRepository.existsByEmail(user.getEmail())) {
-            throw new UserFieldAlreadyExistsException("email", user.getEmail());
-        }
-        if (userRepository.existsByCpf(user.getCpf())) {
-            throw new UserFieldAlreadyExistsException("CPF", user.getCpf());
-        }
-
         User existingUser = userRepository.findById(userId);
 
+        if (!existingUser.getEmail().equals(user.getEmail()) && userRepository.existsByEmail(user.getEmail())) {
+            throw new UserFieldAlreadyExistsException("email", user.getEmail());
+        }
+
         existingUser.setEmail(user.getEmail());
-        existingUser.setCpf(user.getCpf());
         existingUser.setBirthDate(user.getBirthDate());
         existingUser.setName(user.getName());
 

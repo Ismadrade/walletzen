@@ -13,6 +13,15 @@ eureka:
 spring:
   application:
     name: wz-financial
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKER:localhost:9092}
+    consumer:
+      group-id: wz-financial-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    topic:
+      wz-user-deleted: wz-user-deleted
 
 
   datasource:

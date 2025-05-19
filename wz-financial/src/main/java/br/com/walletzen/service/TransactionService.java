@@ -9,11 +9,13 @@ import br.com.walletzen.mapper.TransactionMapper;
 import br.com.walletzen.repository.TransactionRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TransactionService {
@@ -58,5 +60,11 @@ public class TransactionService {
                 .orElseThrow(() -> new TransactionNotFoundException(id));
         transaction.setRecordStatus(false);
         transactionRepository.save(transaction);
+    }
+
+    @Transactional
+    public void deleteByUserId(UUID userId) {
+        transactionRepository.deleteTransactionsByUserId(userId);
+        log.info("Transactions has been deleted for userId {}", userId);
     }
 }

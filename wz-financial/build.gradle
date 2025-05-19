@@ -32,6 +32,7 @@ dependencies {
 	implementation 'org.apache.httpcomponents:httpclient:4.5.13'
 	implementation 'org.springframework.security:spring-security-crypto:6.4.4'
 	implementation 'com.google.guava:guava:32.0.1-android'
+	implementation("org.springframework.kafka:spring-kafka:3.3.5")
 //	implementation("org.springframework.cloud:spring-cloud-starter-config")
 
 	compileOnly 'org.projectlombok:lombok'
@@ -39,6 +40,7 @@ dependencies {
 	annotationProcessor 'org.projectlombok:lombok'
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation("org.springframework.kafka:spring-kafka-test:3.3.5")
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 

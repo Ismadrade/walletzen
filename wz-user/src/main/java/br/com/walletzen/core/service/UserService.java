@@ -1,33 +1,33 @@
 package br.com.walletzen.core.service;
 
 import br.com.walletzen.core.domain.PageInfo;
+import br.com.walletzen.core.domain.PageQuery;
 import br.com.walletzen.core.domain.User;
-import br.com.walletzen.core.dto.UserDeletedEventDTO;
+import br.com.walletzen.core.domain.event.UserDeletedEvent;
 import br.com.walletzen.core.exception.UserFieldAlreadyExistsException;
 import br.com.walletzen.core.exception.UserNotFoundException;
 import br.com.walletzen.core.port.input.CreateUserUseCase;
 import br.com.walletzen.core.port.input.DeleteUserUseCase;
 import br.com.walletzen.core.port.input.EditUserUseCase;
 import br.com.walletzen.core.port.input.GetUserUseCase;
-import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.port.output.UserDeletedEventPublisherPort;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 
 import java.util.UUID;
 
-public class UserServicePort implements GetUserUseCase, CreateUserUseCase, EditUserUseCase, DeleteUserUseCase {
+public class UserService implements GetUserUseCase, CreateUserUseCase, EditUserUseCase, DeleteUserUseCase {
 
     private final UserPersistencePort userRepository;
     private final UserDeletedEventPublisherPort eventPublisher;
 
-    public UserServicePort(UserPersistencePort userRepository, UserDeletedEventPublisherPort eventPublisher) {
+    public UserService(UserPersistencePort userRepository, UserDeletedEventPublisherPort eventPublisher) {
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
     }
 
     @Override
-    public PageInfo<User> getAllUsers(PageRequestDTO pageRequestDTO) {
-        return userRepository.findAll(pageRequestDTO);
+    public PageInfo<User> getAllUsers(PageQuery pageQuery) {
+        return userRepository.findAll(pageQuery);
     }
 
     @Override
@@ -65,12 +65,12 @@ public class UserServicePort implements GetUserUseCase, CreateUserUseCase, EditU
     }
 
     @Override
-    public void deleteUser(UUID userId) throws Exception {
+    public void deleteUser(UUID userId) throws UserNotFoundException {
         User user = userRepository.findById(userId);
         user.setRecordStatus(false);
         userRepository.save(user);
 
-        eventPublisher.publish(new UserDeletedEventDTO(user.getId()));
+        eventPublisher.publish(new UserDeletedEvent(user.getId()));
 
     }
 }

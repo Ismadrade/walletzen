@@ -1,6 +1,5 @@
-package br.com.walletzen.adapter.handler;
+package br.com.walletzen.adapter.inbound.web.handler;
 
-import br.com.walletzen.adapter.handler.data.ExceptionResponse;
 import br.com.walletzen.core.exception.UserFieldAlreadyExistsException;
 import br.com.walletzen.core.exception.UserNotFoundException;
 import org.springframework.http.HttpStatus;

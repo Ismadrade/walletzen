@@ -1,11 +1,11 @@
 package br.com.walletzen.adapter.outbound.persistence;
 
-import br.com.walletzen.adapter.mapper.UserMapper;
 import br.com.walletzen.adapter.outbound.persistence.entities.UserEntity;
+import br.com.walletzen.adapter.outbound.persistence.mapper.UserPersistenceMapper;
 
 import br.com.walletzen.core.domain.PageInfo;
+import br.com.walletzen.core.domain.PageQuery;
 import br.com.walletzen.core.domain.User;
-import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.exception.UserNotFoundException;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 import org.springframework.data.domain.Page;
@@ -15,7 +15,6 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,24 +23,24 @@ public class UserPersistencePortImpl implements UserPersistencePort {
 
     private final UserJpaRepository userJpaRepository;
 
-    private final UserMapper userMapper;
+    private final UserPersistenceMapper userPersistenceMapper;
 
-    public UserPersistencePortImpl(UserJpaRepository userJpaRepository, UserMapper userMapper) {
+    public UserPersistencePortImpl(UserJpaRepository userJpaRepository, UserPersistenceMapper userPersistenceMapper) {
         this.userJpaRepository = userJpaRepository;
-        this.userMapper = userMapper;
+        this.userPersistenceMapper = userPersistenceMapper;
     }
 
 
     @Override
-    public PageInfo<User> findAll(PageRequestDTO pageRequestDTO) {
+    public PageInfo<User> findAll(PageQuery pageQuery) {
 
-        Pageable pageable = PageRequest.of(pageRequestDTO.getPage(), pageRequestDTO.getSize(),
-                Sort.by(Sort.Direction.fromString(pageRequestDTO.getDirection()), pageRequestDTO.getSort()));
+        Pageable pageable = PageRequest.of(pageQuery.getPage(), pageQuery.getSize(),
+                Sort.by(Sort.Direction.fromString(pageQuery.getDirection()), pageQuery.getSort()));
 
         Page<UserEntity> userPage = userJpaRepository.findAllActiveUsers(pageable);
 
         List<User> users = userPage.getContent().stream()
-                .map(userMapper::toDomain)
+                .map(userPersistenceMapper::toDomain)
                 .collect(Collectors.toList());
 
         return new PageInfo<>(
@@ -57,12 +56,12 @@ public class UserPersistencePortImpl implements UserPersistencePort {
 
     @Override
     public void save(User user) {
-        userJpaRepository.save(userMapper.toEntity(user));
+        userJpaRepository.save(userPersistenceMapper.toEntity(user));
     }
 
     @Override
     public User findById(UUID id) throws UserNotFoundException {
-        return userMapper.toDomain(userJpaRepository.findUserById(id).orElseThrow(() -> new UserNotFoundException(id)));
+        return userPersistenceMapper.toDomain(userJpaRepository.findUserById(id).orElseThrow(() -> new UserNotFoundException(id)));
     }
 
     @Override

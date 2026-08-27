@@ -1,14 +1,14 @@
 package br.com.walletzen.core.port.output;
 
 import br.com.walletzen.core.domain.PageInfo;
+import br.com.walletzen.core.domain.PageQuery;
 import br.com.walletzen.core.domain.User;
-import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.exception.UserNotFoundException;
 
 import java.util.UUID;
 
 public interface UserPersistencePort {
-    PageInfo<User> findAll(PageRequestDTO pageRequestDTO);
+    PageInfo<User> findAll(PageQuery pageQuery);
     void save(User user);
     User findById(UUID id) throws UserNotFoundException;
 

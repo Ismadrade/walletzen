@@ -1,8 +1,8 @@
 package br.com.walletzen.core.service;
 
 import br.com.walletzen.core.domain.PageInfo;
+import br.com.walletzen.core.domain.PageQuery;
 import br.com.walletzen.core.domain.User;
-import br.com.walletzen.core.dto.PageRequestDTO;
 import br.com.walletzen.core.exception.UserFieldAlreadyExistsException;
 import br.com.walletzen.core.port.output.UserDeletedEventPublisherPort;
 import br.com.walletzen.core.port.output.UserPersistencePort;
@@ -33,7 +33,7 @@ public class UserServiceTest {
 
 
     @InjectMocks
-    private UserServicePort userService;
+    private UserService userService;
 
     @Captor
     private ArgumentCaptor<User> userCaptor;
@@ -45,7 +45,7 @@ public class UserServiceTest {
 
         // ARRANGE
         UUID userId = UUID.randomUUID();
-        User expectedUser = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(), true);
+        User expectedUser = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
 
         when(userPersistencePort.findById(userId)).thenReturn(expectedUser);
 
@@ -63,14 +63,14 @@ public class UserServiceTest {
 
         // ARRANGE
         List<User> users = List.of(
-                new User(UUID.randomUUID(), "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(), true),
-                new User(UUID.randomUUID(), "Maria", "98765432100", "email2@gteste.com", LocalDate.of(1997, 10, 25).toString(), true)
+                new User(UUID.randomUUID(), "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true),
+                new User(UUID.randomUUID(), "Maria", "98765432100", "email2@gteste.com", LocalDate.of(1997, 10, 25), true)
         );
         PageInfo<User> usersPageInfo = new PageInfo<>(users, 0,2, 2, 1, true);
         when(userPersistencePort.findAll(any())).thenReturn(usersPageInfo);
 
         // ACT
-        var result = userService.getAllUsers(new PageRequestDTO(0, 2, "name", "ASC"));
+        var result = userService.getAllUsers(new PageQuery(0, 2, "name", "ASC"));
 
         // ASSERT
         assertEquals(result.getContent().size(), 2);
@@ -87,7 +87,7 @@ public class UserServiceTest {
         userToBeSaved.setName("João");
         userToBeSaved.setCpf("12345678900");
         userToBeSaved.setEmail("email@gteste.com");
-        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2).toString());
+        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2));
 
         // ACT
         userService.createUser(userToBeSaved);
@@ -107,7 +107,7 @@ public class UserServiceTest {
         userToBeSaved.setName("João");
         userToBeSaved.setCpf("12345678900");
         userToBeSaved.setEmail("email@gteste.com");
-        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2).toString());
+        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2));
 
         when(userPersistencePort.existsByEmail(anyString())).thenReturn(true);
 
@@ -132,7 +132,7 @@ public class UserServiceTest {
         userToBeSaved.setName("João");
         userToBeSaved.setCpf("12345678900");
         userToBeSaved.setEmail("email@gteste.com");
-        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2).toString());
+        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2));
 
         when(userPersistencePort.existsByCpf(anyString())).thenReturn(true);
 
@@ -158,9 +158,9 @@ public class UserServiceTest {
         userEdited.setName("João da Silva");
         userEdited.setCpf("12345678900");
         userEdited.setEmail("email_novo@gteste.com");
-        userEdited.setBirthDate(LocalDate.of(1995, 5, 2).toString());
+        userEdited.setBirthDate(LocalDate.of(1995, 5, 2));
 
-        User userToBeEdited = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(),true);
+        User userToBeEdited = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2),true);
 
         when(userPersistencePort.findById(userId)).thenReturn(userToBeEdited);
 
@@ -186,9 +186,9 @@ public class UserServiceTest {
         userEdited.setName("João da Silva");
         userEdited.setCpf("12345678900");
         userEdited.setEmail("email_novo@gteste.com");
-        userEdited.setBirthDate(LocalDate.of(1995, 5, 2).toString());
+        userEdited.setBirthDate(LocalDate.of(1995, 5, 2));
 
-        User userToBeEdited = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(),true);
+        User userToBeEdited = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2),true);
 
         when(userPersistencePort.findById(userId)).thenReturn(userToBeEdited);
         when(userPersistencePort.existsByEmail(anyString())).thenReturn(true);
@@ -209,7 +209,7 @@ public class UserServiceTest {
 
         // ARRANGE
         UUID userId = UUID.randomUUID();
-        User userToBeDeleted = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(), true);
+        User userToBeDeleted = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
 
         when(userPersistencePort.findById(userId)).thenReturn(userToBeDeleted);
 

@@ -1,10 +1,10 @@
-package br.com.walletzen.adapter.inbound;
+package br.com.walletzen.adapter.inbound.web;
 
-import br.com.walletzen.adapter.mapper.UserMapperImpl;
+import br.com.walletzen.adapter.inbound.web.mapper.UserWebMapperImpl;
 import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.exception.UserNotFoundException;
-import br.com.walletzen.core.service.UserServicePort;
+import br.com.walletzen.core.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,14 +22,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({UserController.class, UserMapperImpl.class})
+@WebMvcTest({UserController.class, UserWebMapperImpl.class})
 public class UserControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
     @MockitoBean
-    private UserServicePort userServicePort;
+    private UserService userService;
 
 
     @Test
@@ -37,11 +37,11 @@ public class UserControllerTest {
     void shouldReturnAllUser() throws Exception {
         // ARRANGE
         List<User> users = List.of(
-                new User(UUID.randomUUID(), "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(), true),
-                new User(UUID.randomUUID(), "Maria", "98765432100", "email2@gteste.com", LocalDate.of(1997, 10, 25).toString(), true)
+                new User(UUID.randomUUID(), "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true),
+                new User(UUID.randomUUID(), "Maria", "98765432100", "email2@gteste.com", LocalDate.of(1997, 10, 25), true)
         );
         PageInfo<User> usersPageInfo = new PageInfo<>(users, 0,2, 2, 1, true);
-        when(userServicePort.getAllUsers(any())).thenReturn(usersPageInfo);
+        when(userService.getAllUsers(any())).thenReturn(usersPageInfo);
 
        // ASSERT + ACT
        mockMvc.perform(get(""))
@@ -55,8 +55,8 @@ public class UserControllerTest {
     void shouldReturnUserById() throws Exception {
         // ARRANGE
         UUID userId = UUID.randomUUID();
-        User user = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2).toString(), true);
-        when(userServicePort.getUserById(any())).thenReturn(user);
+        User user = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
+        when(userService.getUserById(any())).thenReturn(user);
 
         // ASSERT + ACT
         mockMvc.perform(get("/" + userId))
@@ -71,7 +71,7 @@ public class UserControllerTest {
     void shouldNotFoundAUserById() throws Exception {
         // ARRANGE
         UUID userId = UUID.randomUUID();
-        when(userServicePort.getUserById(any())).thenThrow(new UserNotFoundException(userId));
+        when(userService.getUserById(any())).thenThrow(new UserNotFoundException(userId));
 
         // ASSERT + ACT
         mockMvc.perform(get("/" + userId))

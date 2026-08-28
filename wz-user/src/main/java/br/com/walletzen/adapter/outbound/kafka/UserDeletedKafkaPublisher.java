@@ -1,6 +1,6 @@
 package br.com.walletzen.adapter.outbound.kafka;
 
-import br.com.walletzen.core.dto.UserDeletedEventDTO;
+import br.com.walletzen.core.domain.event.UserDeletedEvent;
 import br.com.walletzen.core.port.output.UserDeletedEventPublisherPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ public class UserDeletedKafkaPublisher implements UserDeletedEventPublisherPort 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    public void publish(UserDeletedEventDTO event) {
+    public void publish(UserDeletedEvent event) {
         try {
             String message = objectMapper.writeValueAsString(event);
             kafkaTemplate.send(userDeletedTopic, message);

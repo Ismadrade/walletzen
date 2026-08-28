@@ -1,7 +1,6 @@
 package br.com.walletzen.adapter.outbound.persistence;
 
 import br.com.walletzen.adapter.outbound.persistence.entities.UserEntity;
-import br.com.walletzen.core.domain.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;

@@ -1,4 +1,4 @@
-package br.com.walletzen.adapter.dto;
+package br.com.walletzen.adapter.inbound.web.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 

@@ -48,7 +48,7 @@ public class TransactionService {
         Transaction transaction = transactionRepository.findByIdAndRecordStatus(id, true)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
 
-        transaction.setTransactionType(TransactionType.valueOf(dto.transactionType()));
+        transaction.setTransactionType(TransactionType.fromString(dto.transactionType()));
         transaction.setAmount(dto.amount());
         transaction.setDescription(dto.description());
         return transactionMapper.toResponse(transactionRepository.save(transaction));

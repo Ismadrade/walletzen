@@ -21,7 +21,7 @@ public interface TransactionMapper {
 
     @Named("mapTransactionType")
     default TransactionType mapTransactionType(String type) {
-        return TransactionType.valueOf(type.toUpperCase());
+        return TransactionType.fromString(type);
     }
 
     @Named("mapTransactionTypeToString")

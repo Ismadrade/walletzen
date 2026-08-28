@@ -1,6 +1,6 @@
 package br.com.walletzen.consumer;
 
-import br.com.walletzen.dto.request.UserDeletedEventDTO;
+import br.com.walletzen.dto.event.UserDeletedEventDTO;
 import br.com.walletzen.service.TransactionService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

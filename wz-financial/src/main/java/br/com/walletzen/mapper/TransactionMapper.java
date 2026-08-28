@@ -7,11 +7,9 @@ import br.com.walletzen.enums.TransactionType;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
-import org.mapstruct.factory.Mappers;
 
 @Mapper(componentModel = "spring")
 public interface TransactionMapper {
-    TransactionMapper INSTANCE = Mappers.getMapper(TransactionMapper.class);
 
     @Mapping(target = "transactionType", source = "transactionType", qualifiedByName = "mapTransactionType")
     Transaction toEntity(TransactionRequestDTO dto);

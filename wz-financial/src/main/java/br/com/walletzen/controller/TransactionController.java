@@ -3,7 +3,9 @@ package br.com.walletzen.controller;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
 import br.com.walletzen.service.TransactionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,12 +30,12 @@ public class TransactionController {
     }
 
     @PostMapping
-    public ResponseEntity<TransactionResponseDTO> create(@RequestBody TransactionRequestDTO dto) {
-        return ResponseEntity.ok(transactionService.createTransaction(dto));
+    public ResponseEntity<TransactionResponseDTO> create(@Valid @RequestBody TransactionRequestDTO dto) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(transactionService.createTransaction(dto));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<TransactionResponseDTO> update(@PathVariable UUID id, @RequestBody TransactionRequestDTO dto) {
+    public ResponseEntity<TransactionResponseDTO> update(@PathVariable UUID id, @Valid @RequestBody TransactionRequestDTO dto) {
         return ResponseEntity.ok(transactionService.updateTransaction(id, dto));
     }
 

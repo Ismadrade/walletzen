@@ -26,14 +26,26 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.mapstruct:mapstruct:1.6.3'
 	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client:4.2.1'
-	implementation 'com.thoughtworks.xstream:xstream:1.4.21'
-	implementation 'org.apache.httpcomponents:httpclient:4.5.13'
-	implementation 'org.springframework.security:spring-security-crypto:6.4.4'
-	implementation 'com.google.guava:guava:32.0.1-android'
 	implementation("org.springframework.kafka:spring-kafka:3.3.5")
 //	implementation("org.springframework.cloud:spring-cloud-starter-config")
+
+	// Pin patched versions of libraries that arrive transitively (via
+	// spring-cloud-starter-netflix-eureka-client -> Netflix Eureka/Archaius/Servo).
+	// Not used directly by this module, so they are constraints, not dependencies.
+	constraints {
+		implementation('com.thoughtworks.xstream:xstream:1.4.21') {
+			because 'deserialization CVEs (e.g. CVE-2024-47072) affect <= 1.4.20'
+		}
+		implementation('org.apache.httpcomponents:httpclient:4.5.13') {
+			because 'CVE-2020-13956 affects <= 4.5.12'
+		}
+		implementation('com.google.guava:guava:32.0.1-android') {
+			because 'CVE-2023-2976 / CVE-2020-8908 affect older versions'
+		}
+	}
 
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'org.postgresql:postgresql'
@@ -42,6 +54,7 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation("org.springframework.kafka:spring-kafka-test:3.3.5")
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	testRuntimeOnly 'com.h2database:h2'
 }
 
 tasks.named('test') {

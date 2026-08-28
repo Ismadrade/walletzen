@@ -1,15 +1,6 @@
-DROP TABLE IF EXISTS public.WZ_TRANSACTION;
-
-CREATE TABLE public.WZ_TRANSACTION (
-    ID UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    TRANSACTION_TYPE VARCHAR NOT NULL,
-    DESCRIPTION VARCHAR,
-    AMOUNT DECIMAL(10,2) NOT NULL,
-    USER_ID UUID NOT NULL,
-    CREATED_AT TIMESTAMP NOT NULL DEFAULT NOW(),
-    UPDATED_AT TIMESTAMP,
-    RECORD_STATUS BOOLEAN
-);
+-- Seed data only. The schema is owned by Hibernate (ddl-auto: create-drop),
+-- generated from the @Entity mapping. Keep this file limited to INSERTs so the
+-- running schema never diverges from the entity.
 
 INSERT INTO public.WZ_TRANSACTION (ID, TRANSACTION_TYPE, DESCRIPTION, AMOUNT, USER_ID, CREATED_AT, UPDATED_AT, RECORD_STATUS)
 VALUES

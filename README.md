@@ -149,7 +149,7 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 | ------ | ------------------ | --------- |
 | GET    | `/user/{userId}`   | Lista transações ativas do usuário. |
 | GET    | `/{id}`            | Busca transação ativa por `UUID`. |
-| POST   | `/`                | Cria transação. Body `TransactionRequestDTO`. |
+| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (validado: `userId`/`amount` obrigatórios, `amount` positivo, `transactionType` não vazio). `201 Created`. |
 | PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. |
 | DELETE | `/{id}`            | *Soft delete* (`204 No Content`). |
 

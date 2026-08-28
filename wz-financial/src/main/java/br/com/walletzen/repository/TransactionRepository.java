@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,6 +19,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     Optional<Transaction> findByIdAndRecordStatus(UUID id, boolean recordStatus);
 
     @Modifying
-    @Query("UPDATE Transaction t SET t.recordStatus = false WHERE t.userId = :userId")
-    void deleteTransactionsByUserId(@Param("userId") UUID userId);
+    @Query("UPDATE Transaction t SET t.recordStatus = false, t.updatedAt = :now WHERE t.userId = :userId")
+    void deleteTransactionsByUserId(@Param("userId") UUID userId, @Param("now") LocalDateTime now);
 }

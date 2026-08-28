@@ -7,11 +7,12 @@ import br.com.walletzen.enums.TransactionType;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.mapper.TransactionMapper;
 import br.com.walletzen.repository.TransactionRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionMapper transactionMapper;
 
+    @Transactional(readOnly = true)
     public List<TransactionResponseDTO> getTransactionsByUser(UUID userId) {
         return transactionRepository.findByUserIdAndRecordStatus(userId, true)
                 .stream()
@@ -30,6 +32,7 @@ public class TransactionService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public TransactionResponseDTO getTransactionById(UUID id) {
         Transaction transaction = transactionRepository.findByIdAndRecordStatus(id, true)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
@@ -64,7 +67,7 @@ public class TransactionService {
 
     @Transactional
     public void deleteByUserId(UUID userId) {
-        transactionRepository.deleteTransactionsByUserId(userId);
+        transactionRepository.deleteTransactionsByUserId(userId, LocalDateTime.now());
         log.info("Transactions has been deleted for userId {}", userId);
     }
 }

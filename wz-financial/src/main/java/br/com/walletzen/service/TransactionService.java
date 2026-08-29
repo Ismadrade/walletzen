@@ -47,10 +47,10 @@ public class TransactionService {
     public PageResponseDTO<TransactionResponseDTO> getTransactionsByUser(UUID userId, Integer year, Integer month,
                                                                         int page, int size) {
         Pageable pageable = buildPageable(page, size);
+        DateRange range = resolveRange(year, month);
 
-        Page<Transaction> result = (year == null && month == null)
-                ? transactionRepository.findByUserIdAndRecordStatus(userId, true, pageable)
-                : findByPeriod(userId, year, month, pageable);
+        Page<Transaction> result =
+                transactionRepository.findActiveByUser(userId, range.start(), range.end(), pageable);
 
         return PageResponseDTO.from(result.map(transactionMapper::toResponse));
     }
@@ -65,7 +65,10 @@ public class TransactionService {
         return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
-    private Page<Transaction> findByPeriod(UUID userId, Integer year, Integer month, Pageable pageable) {
+    private DateRange resolveRange(Integer year, Integer month) {
+        if (year == null && month == null) {
+            return DateRange.UNBOUNDED;
+        }
         if (year == null) {
             throw new InvalidFilterException("month filter requires year");
         }
@@ -73,21 +76,19 @@ public class TransactionService {
             throw new InvalidFilterException("month must be between 1 and 12");
         }
 
-        LocalDateTime start;
-        LocalDateTime end;
         try {
-            if (month == null) {
-                start = LocalDate.of(year, 1, 1).atStartOfDay();
-                end = start.plusYears(1);
-            } else {
-                start = LocalDate.of(year, month, 1).atStartOfDay();
-                end = start.plusMonths(1);
-            }
+            LocalDateTime start = (month == null)
+                    ? LocalDate.of(year, 1, 1).atStartOfDay()
+                    : LocalDate.of(year, month, 1).atStartOfDay();
+            LocalDateTime end = (month == null) ? start.plusYears(1) : start.plusMonths(1);
+            return new DateRange(start, end);
         } catch (DateTimeException ex) {
             throw new InvalidFilterException("invalid year/month: " + ex.getMessage());
         }
+    }
 
-        return transactionRepository.findActiveByUserAndCreatedAtBetween(userId, start, end, pageable);
+    private record DateRange(LocalDateTime start, LocalDateTime end) {
+        private static final DateRange UNBOUNDED = new DateRange(null, null);
     }
 
     @Transactional(readOnly = true)

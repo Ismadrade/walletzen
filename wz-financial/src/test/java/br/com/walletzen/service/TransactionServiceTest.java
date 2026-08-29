@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -69,9 +70,9 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("getTransactionsByUser without a filter returns a page of the user's active transactions")
+    @DisplayName("getTransactionsByUser without a filter queries with an unbounded window (null start/end)")
     void getTransactionsByUserNoFilter() {
-        when(transactionRepository.findByUserIdAndRecordStatus(eq(userId), eq(true), any(Pageable.class)))
+        when(transactionRepository.findActiveByUser(eq(userId), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(sampleTransaction(), sampleTransaction())));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
@@ -80,7 +81,7 @@ class TransactionServiceTest {
 
         assertEquals(2, result.content().size());
         assertEquals(0, result.pageNumber());
-        verify(transactionRepository).findByUserIdAndRecordStatus(eq(userId), eq(true), any(Pageable.class));
+        verify(transactionRepository).findActiveByUser(eq(userId), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -88,7 +89,7 @@ class TransactionServiceTest {
     void getTransactionsByUserMonthFilter() {
         ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
-        when(transactionRepository.findActiveByUserAndCreatedAtBetween(
+        when(transactionRepository.findActiveByUser(
                 eq(userId), start.capture(), end.capture(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(sampleTransaction())));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
@@ -104,7 +105,7 @@ class TransactionServiceTest {
     void getTransactionsByUserYearFilter() {
         ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
         ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
-        when(transactionRepository.findActiveByUserAndCreatedAtBetween(
+        when(transactionRepository.findActiveByUser(
                 eq(userId), start.capture(), end.capture(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
@@ -142,7 +143,7 @@ class TransactionServiceTest {
     @DisplayName("getTransactionsByUser caps the page size at MAX_PAGE_SIZE")
     void getTransactionsByUserCapsPageSize() {
         ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-        when(transactionRepository.findByUserIdAndRecordStatus(eq(userId), eq(true), pageable.capture()))
+        when(transactionRepository.findActiveByUser(eq(userId), isNull(), isNull(), pageable.capture()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         transactionService.getTransactionsByUser(userId, null, null, 0, 500);

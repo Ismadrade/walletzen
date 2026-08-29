@@ -8,7 +8,9 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "WZ_TRANSACTION")
+@Table(name = "WZ_TRANSACTION", indexes = {
+        @Index(name = "IDX_WZ_TRANSACTION_USER_CREATED", columnList = "user_id, created_at")
+})
 @Getter
 @Setter
 @NoArgsConstructor

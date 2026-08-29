@@ -1,6 +1,7 @@
 package br.com.walletzen.handler;
 
 import br.com.walletzen.dto.response.ExceptionResponse;
+import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,11 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InvalidTransactionTypeException.class)
     public ResponseEntity<ExceptionResponse> handleInvalidTransactionType(InvalidTransactionTypeException ex) {
+        return new ResponseEntity<>(new ExceptionResponse(LocalDateTime.now(), ex.getMessage()), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(InvalidFilterException.class)
+    public ResponseEntity<ExceptionResponse> handleInvalidFilter(InvalidFilterException ex) {
         return new ResponseEntity<>(new ExceptionResponse(LocalDateTime.now(), ex.getMessage()), HttpStatus.BAD_REQUEST);
     }
 

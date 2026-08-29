@@ -1,7 +1,9 @@
 package br.com.walletzen.controller;
 
 import br.com.walletzen.dto.request.TransactionRequestDTO;
+import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
+import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.service.TransactionService;
@@ -21,6 +23,7 @@ import java.util.UUID;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -56,13 +59,49 @@ class TransactionControllerTest {
     }
 
     @Test
-    @DisplayName("GET /transactions/user/{userId} returns the user's transactions")
+    @DisplayName("GET /transactions/user/{userId} returns a page of the user's transactions with default paging")
     void getByUser() throws Exception {
-        when(transactionService.getTransactionsByUser(userId)).thenReturn(List.of(response(), response()));
+        when(transactionService.getTransactionsByUser(eq(userId), isNull(), isNull(), eq(0), eq(10)))
+                .thenReturn(new PageResponseDTO<>(List.of(response(), response()), 0, 10, 2, 1, true));
 
         mockMvc.perform(get("/transactions/user/{userId}", userId))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(2));
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.pageNumber").value(0))
+                .andExpect(jsonPath("$.pageSize").value(10))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.last").value(true));
+    }
+
+    @Test
+    @DisplayName("GET /transactions/user/{userId} forwards the year/month/page/size query params")
+    void getByUserWithFilters() throws Exception {
+        when(transactionService.getTransactionsByUser(eq(userId), eq(2026), eq(8), eq(2), eq(25)))
+                .thenReturn(new PageResponseDTO<>(List.of(response()), 2, 25, 60, 3, false));
+
+        mockMvc.perform(get("/transactions/user/{userId}", userId)
+                        .param("year", "2026").param("month", "8").param("page", "2").param("size", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pageNumber").value(2))
+                .andExpect(jsonPath("$.last").value(false));
+    }
+
+    @Test
+    @DisplayName("GET /transactions/user/{userId} returns 400 when the service rejects the filter")
+    void getByUserInvalidFilter() throws Exception {
+        when(transactionService.getTransactionsByUser(eq(userId), isNull(), eq(8), eq(0), eq(10)))
+                .thenThrow(new InvalidFilterException("month filter requires year"));
+
+        mockMvc.perform(get("/transactions/user/{userId}", userId).param("month", "8"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("year")));
+    }
+
+    @Test
+    @DisplayName("GET /transactions/user/{userId} returns 400 for a non-numeric month")
+    void getByUserNonNumericMonth() throws Exception {
+        mockMvc.perform(get("/transactions/user/{userId}", userId).param("month", "aug"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

@@ -2,8 +2,10 @@ package br.com.walletzen.service;
 
 import br.com.walletzen.domain.Transaction;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
+import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
 import br.com.walletzen.enums.TransactionType;
+import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.mapper.TransactionMapper;
@@ -15,6 +17,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +35,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -63,16 +69,85 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("getTransactionsByUser returns only the user's active transactions")
-    void getTransactionsByUser() {
-        when(transactionRepository.findByUserIdAndRecordStatus(userId, true))
-                .thenReturn(List.of(sampleTransaction(), sampleTransaction()));
+    @DisplayName("getTransactionsByUser without a filter returns a page of the user's active transactions")
+    void getTransactionsByUserNoFilter() {
+        when(transactionRepository.findByUserIdAndRecordStatus(eq(userId), eq(true), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(sampleTransaction(), sampleTransaction())));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
-        List<TransactionResponseDTO> result = transactionService.getTransactionsByUser(userId);
+        PageResponseDTO<TransactionResponseDTO> result =
+                transactionService.getTransactionsByUser(userId, null, null, 0, 10);
 
-        assertEquals(2, result.size());
-        verify(transactionRepository).findByUserIdAndRecordStatus(userId, true);
+        assertEquals(2, result.content().size());
+        assertEquals(0, result.pageNumber());
+        verify(transactionRepository).findByUserIdAndRecordStatus(eq(userId), eq(true), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser with year + month queries the createdAt window [1st of month, 1st of next month)")
+    void getTransactionsByUserMonthFilter() {
+        ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
+        when(transactionRepository.findActiveByUserAndCreatedAtBetween(
+                eq(userId), start.capture(), end.capture(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(sampleTransaction())));
+        when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
+
+        transactionService.getTransactionsByUser(userId, 2026, 8, 0, 10);
+
+        assertEquals(LocalDateTime.of(2026, 8, 1, 0, 0), start.getValue());
+        assertEquals(LocalDateTime.of(2026, 9, 1, 0, 0), end.getValue());
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser with year only queries the whole calendar year")
+    void getTransactionsByUserYearFilter() {
+        ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
+        when(transactionRepository.findActiveByUserAndCreatedAtBetween(
+                eq(userId), start.capture(), end.capture(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        transactionService.getTransactionsByUser(userId, 2026, null, 0, 10);
+
+        assertEquals(LocalDateTime.of(2026, 1, 1, 0, 0), start.getValue());
+        assertEquals(LocalDateTime.of(2027, 1, 1, 0, 0), end.getValue());
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser rejects a month filter without a year")
+    void getTransactionsByUserMonthWithoutYear() {
+        assertThrows(InvalidFilterException.class,
+                () -> transactionService.getTransactionsByUser(userId, null, 8, 0, 10));
+        verifyNoInteractions(transactionRepository);
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser rejects an out-of-range month")
+    void getTransactionsByUserInvalidMonth() {
+        assertThrows(InvalidFilterException.class,
+                () -> transactionService.getTransactionsByUser(userId, 2026, 13, 0, 10));
+        verifyNoInteractions(transactionRepository);
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser rejects a negative page")
+    void getTransactionsByUserNegativePage() {
+        assertThrows(InvalidFilterException.class,
+                () -> transactionService.getTransactionsByUser(userId, null, null, -1, 10));
+        verifyNoInteractions(transactionRepository);
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser caps the page size at MAX_PAGE_SIZE")
+    void getTransactionsByUserCapsPageSize() {
+        ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
+        when(transactionRepository.findByUserIdAndRecordStatus(eq(userId), eq(true), pageable.capture()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        transactionService.getTransactionsByUser(userId, null, null, 0, 500);
+
+        assertEquals(TransactionService.MAX_PAGE_SIZE, pageable.getValue().getPageSize());
     }
 
     @Test

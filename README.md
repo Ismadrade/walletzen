@@ -147,7 +147,7 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 
 | Método | Caminho            | Descrição |
 | ------ | ------------------ | --------- |
-| GET    | `/user/{userId}`   | Lista transações ativas do usuário. |
+| GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Ordena por `createdAt` desc. Retorna `PageResponseDTO<TransactionResponseDTO>` (mesmo formato do `PageInfo` do `wz-user`). Filtro `year`/`month` recai sobre `createdAt`. |
 | GET    | `/{id}`            | Busca transação ativa por `UUID`. |
 | POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (validado: `userId`/`amount` obrigatórios, `amount` positivo, `transactionType` não vazio). `201 Created`. |
 | PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. |
@@ -155,7 +155,8 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 
 Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
 (`ExceptionResponse` / `UserNotFoundException`, `UserFieldAlreadyExistsException`,
-`TransactionNotFoundException`).
+`TransactionNotFoundException`, `InvalidTransactionTypeException`,
+`InvalidFilterException`).
 
 ---
 

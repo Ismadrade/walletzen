@@ -1,0 +1,21 @@
+# Configuração comum a todos os serviços WalletZen.
+# Servida pelo config-server (profile native, a partir desta pasta).
+
+walletzen:
+  config-source: "config-server (native / config-repo)"
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://${EUREKA_HOST:localhost}:${EUREKA_PORT:8761}/eureka
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,refresh
+  endpoint:
+    health:
+      show-details: always

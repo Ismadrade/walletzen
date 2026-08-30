@@ -9,7 +9,13 @@ eureka:
 spring:
   application:
     name: wz-api-gateway
+  # Config comum (management, marcador) vem do config-server; as rotas seguem locais.
+  # optional: -> o gateway sobe mesmo que o config-server esteja fora do ar.
+  config:
+    import: "optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}"
   cloud:
+    config:
+      fail-fast: false
     gateway:
       discovery:
         locator:

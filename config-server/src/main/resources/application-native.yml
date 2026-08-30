@@ -1,0 +1,7 @@
+spring:
+  cloud:
+    config:
+      server:
+        native:
+          # Relativo ao diretório de execução do config-server.
+          search-locations: file:./config-repo

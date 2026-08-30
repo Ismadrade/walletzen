@@ -52,13 +52,17 @@ flowchart TD
         USER -. registra .-> REG
         FIN -. registra .-> REG
         GW -. registra .-> REG
+        GW -. config .-> CFG
+        USER -. config .-> CFG
+        FIN -. config .-> CFG
         USER -- publica --> K
         K -- consome --> FIN
         USER --> UDB
         FIN --> FDB
     end
 
-    CFG -. config externa .-> REPO[("git: walletzen-repository")]
+    CFG -- "git (default)" --> REPO[("walletzen-repository<br/>(privado)")]
+    CFG -. "native (offline)" .-> LOCAL[("config-repo/")]
 ```
 
 Padrões de projeto por serviço:
@@ -79,13 +83,25 @@ Netflix Eureka · Spring Cloud Config · Spring Data JPA · PostgreSQL · Apache
 **Build:** Maven wrapper (`config-server`, `wz-api-gateway`, `wz-service-registry`,
 `wz-user`) e Gradle wrapper (`wz-financial`).
 
-**Configuração externa:** o `config-server` usa Spring Cloud Config com backend Git,
-apontando para o repositório **`walletzen-repository`** (`search-paths`
-`wz-user-repo*` e `wz-financial-repo*`, branch `main`).
+**Configuração externa:** `wz-user`, `wz-financial` e `wz-api-gateway` consomem o
+`config-server` no boot (`spring.config.import: optional:configserver:...`). O
+`application.yml` local de cada serviço tem só a identidade (`spring.application.name`) e
+o ponteiro para o config-server; datasource, Kafka e Eureka vêm de fora.
 
-> Observação: nos serviços, a dependência `spring-cloud-starter-config` está
-> **comentada** nos `pom.xml`/`build.gradle`. Hoje cada serviço lê apenas seu
-> `application.yml` local; o `config-server` existe mas não é consumido.
+O `config-server` tem dois backends, escolhidos por profile:
+
+| Profile | Backend | Origem | Quando usar |
+| ------- | ------- | ------ | ----------- |
+| `git` (**default**) | Spring Cloud Config + Git | repo privado **`walletzen-repository`** (`search-paths` `wz-user-repo*`, `wz-financial-repo*`, branch `main`) | Sempre. Exige `GIT_USERNAME` e `GIT_PASSWORD` (Personal Access Token com `Contents: read`). |
+| `native` | arquivos locais | `config-server/config-repo/` (cópia offline, versionada) | Válvula de escape: sem rede/token. `SPRING_PROFILES_ACTIVE=native`. |
+
+O `config-repo/` local espelha o repositório remoto — mantenha os dois em sincronia ao
+alterar config. Nos testes o backend é sempre `native` (`config-server/src/test/resources/application.yml`),
+então `./mvnw test` e o CI não precisam de token.
+
+Cada serviço aceita `CONFIG_SERVER_URL` (default `http://localhost:8888`); como o import
+é `optional:`, o serviço ainda sobe se o config-server estiver fora do ar (com a config
+local/default).
 
 ---
 
@@ -94,7 +110,7 @@ apontando para o repositório **`walletzen-repository`** (`search-paths`
 | Serviço              | Porta | Context path | Build  | Responsabilidade |
 | -------------------- | ----- | ------------ | ------ | ---------------- |
 | `wz-service-registry`| 8761  | —            | Maven  | Service discovery (Eureka Server). Não se registra nem busca registro. |
-| `config-server`      | 8888  | —            | Maven  | Spring Cloud Config Server com backend Git (`walletzen-repository`). |
+| `config-server`      | 8888  | —            | Maven  | Spring Cloud Config Server. Backend `git` (default, repo privado `walletzen-repository`, exige `GIT_USERNAME`/`GIT_PASSWORD`) ou `native` (`config-repo/`, offline, `SPRING_PROFILES_ACTIVE=native`). Consumido por `wz-user`, `wz-financial` e `wz-api-gateway`. |
 | `wz-api-gateway`     | 8765  | —            | Maven  | Spring Cloud Gateway. Roteia `/users/**` → `lb://wz-user` e `/financial/**` → `lb://wz-financial`. Discovery locator habilitado. |
 | `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários. Publica evento `UserDeleted` no Kafka ao excluir. Arquitetura hexagonal. |
 | `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações financeiras. Consome `UserDeleted` e desativa as transações do usuário. |
@@ -211,7 +227,8 @@ Suba nesta ordem. Cada serviço tem seu wrapper na respectiva pasta.
 # 1. Service registry (Eureka)
 cd wz-service-registry && ./mvnw spring-boot:run
 
-# 2. Config server  (defina GIT_USERNAME e GIT_PASSWORD antes)
+# 2. Config server  (backend 'git' por default — precisa de GIT_USERNAME e GIT_PASSWORD
+#    no ambiente. Offline/sem token: SPRING_PROFILES_ACTIVE=native)
 cd config-server && ./mvnw spring-boot:run
 
 # 3. API Gateway
@@ -226,6 +243,13 @@ cd wz-financial && ./gradlew bootRun
 
 No Windows use `mvnw.cmd` / `gradlew.bat`.
 
+Confira que os serviços leram do config-server:
+
+```bash
+curl http://localhost:8888/wz-user/default        # config servida
+# no log de cada serviço: "Fetching config from server at : http://localhost:8888"
+```
+
 - Eureka dashboard: `http://localhost:8761`
 - Gateway: `http://localhost:8765`
 
@@ -235,8 +259,10 @@ No Windows use `mvnw.cmd` / `gradlew.bat`.
 
 | Variável       | Serviço        | Padrão            | Descrição |
 | -------------- | -------------- | ----------------- | --------- |
-| `GIT_USERNAME` | `config-server`| —                 | Usuário do repositório Git de configuração |
-| `GIT_PASSWORD` | `config-server`| —                 | Senha / token do repositório de configuração |
+| `SPRING_PROFILES_ACTIVE` | `config-server` | `git` | `git` (default) usa o repo `walletzen-repository`; `native` lê de `config-repo/` (offline) |
+| `GIT_USERNAME` | `config-server`| —                 | Dono do repositório Git de configuração (ex.: `Ismadrade`). Obrigatório no profile `git` |
+| `GIT_PASSWORD` | `config-server`| —                 | Personal Access Token com `Contents: read` no `walletzen-repository`. Obrigatório no profile `git` |
+| `CONFIG_SERVER_URL` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8888` | Endereço do config-server |
 | `DB_HOST`      | `wz-user`, `wz-financial` | `localhost` | Host do PostgreSQL |
 | `DB_PORT`      | `wz-user` / `wz-financial` | `5433` / `5434` | Porta do PostgreSQL |
 | `DB_NAME`      | `wz-user` / `wz-financial` | `wz-user-db` / `wz-financial-db` | Nome do banco |
@@ -252,6 +278,7 @@ No Windows use `mvnw.cmd` / `gradlew.bat`.
 Backend/
 ├── docker-compose.yml       # postgres x2, kafka, redpanda-console
 ├── config-server/           # Spring Cloud Config  (:8888)
+│   └── config-repo/         # cópia offline (profile 'native') — espelha o repo walletzen-repository
 ├── wz-service-registry/     # Eureka Server         (:8761)
 ├── wz-api-gateway/          # Spring Cloud Gateway  (:8765)
 ├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal)

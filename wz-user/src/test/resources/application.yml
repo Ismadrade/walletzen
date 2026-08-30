@@ -1,16 +1,12 @@
-server:
-  port: 0
-
+# Perfil de teste: não depende de config-server, Postgres, Kafka ou Eureka.
 spring:
-  application:
-    name: wz-financial
   cloud:
     config:
       enabled: false
   config:
     import: ""
   datasource:
-    url: jdbc:h2:mem:wz-financial;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
+    url: jdbc:h2:mem:wz-user;DB_CLOSE_DELAY=-1;MODE=PostgreSQL
     username: sa
     password: ""
   jpa:
@@ -20,8 +16,11 @@ spring:
     bootstrap-servers: localhost:9092
     listener:
       auto-startup: false
-    consumer:
-      group-id: wz-financial-group
+    admin:
+      fail-fast: false
+      properties:
+        default.api.timeout.ms: 2000
+        request.timeout.ms: 1500
     topic:
       wz-user-deleted: wz-user-deleted
 

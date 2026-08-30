@@ -1,0 +1,13 @@
+# Perfil de teste: não depende de config-server nem de Eureka.
+spring:
+  cloud:
+    config:
+      enabled: false
+  config:
+    import: ""
+
+eureka:
+  client:
+    enabled: false
+    register-with-eureka: false
+    fetch-registry: false

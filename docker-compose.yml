@@ -1,5 +1,3 @@
-version: '3'
-
 services:
 
   wz-user-db:
@@ -13,6 +11,11 @@ services:
       - POSTGRES_PASSWORD=postgres
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wz-user-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   wz-financial-db:
     image: postgres:latest
@@ -24,7 +27,12 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
     ports:
-      - "5434:5432"    
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d wz-financial-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     container_name: kafka
@@ -63,7 +71,45 @@ services:
         kafka:
           brokers: ["kafka:29092"]
     depends_on:
-      - "kafka"      
+      - "kafka"
+
+  wz-service-registry:
+    build: ./wz-service-registry
+    image: walletzen/wz-service-registry:latest
+    container_name: wz-service-registry
+    restart: unless-stopped
+    networks:
+      - wallet-zen
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  wz-api-gateway:
+    build: ./wz-api-gateway
+    image: walletzen/wz-api-gateway:latest
+    container_name: wz-api-gateway
+    restart: unless-stopped
+    networks:
+      - wallet-zen
+    ports:
+      - "8765:8765"
+    environment:
+      - EUREKA_HOST=wz-service-registry
+      - EUREKA_PORT=8761
+    depends_on:
+      wz-service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8765/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
 networks:
   wallet-zen:

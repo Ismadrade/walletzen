@@ -69,3 +69,9 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Só o jar executável do Spring Boot (bootJar); evita o *-plain.jar e o
+// COPY build/libs/*.jar ambíguo no Dockerfile.
+tasks.named('jar') {
+	enabled = false
+}

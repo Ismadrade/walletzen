@@ -43,3 +43,6 @@ build/
 
 ### Documentos de planejamento (locais, fora do versionamento) ###
 docs/plans/
+
+### Docker ###
+.env

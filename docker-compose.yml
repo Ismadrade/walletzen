@@ -101,8 +101,11 @@ services:
     environment:
       - EUREKA_HOST=wz-service-registry
       - EUREKA_PORT=8761
+      - CONFIG_SERVER_URL=http://config-server:8888
     depends_on:
       wz-service-registry:
+        condition: service_healthy
+      config-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8765/actuator/health | grep -q '\"status\":\"UP\"'"]
@@ -110,6 +113,101 @@ services:
       timeout: 5s
       retries: 10
       start_period: 40s
+
+  config-server:
+    build: ./config-server
+    image: walletzen/config-server:latest
+    container_name: config-server
+    restart: unless-stopped
+    networks:
+      - wallet-zen
+    ports:
+      - "8888:8888"
+    environment:
+      # No compose o config-server usa o backend 'native' por padrao (config-repo/
+      # embutido na imagem) — sobe sem token. Para exercitar o backend git:
+      # CONFIG_SERVER_PROFILE=git + GIT_USERNAME/GIT_PASSWORD no .env.
+      - SPRING_PROFILES_ACTIVE=${CONFIG_SERVER_PROFILE:-native}
+      - GIT_USERNAME=${GIT_USERNAME:-}
+      - GIT_PASSWORD=${GIT_PASSWORD:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8888/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  wz-user:
+    build: ./wz-user
+    image: walletzen/wz-user:latest
+    container_name: wz-user
+    restart: unless-stopped
+    networks:
+      - wallet-zen
+    ports:
+      - "8091:8091"
+    environment:
+      - EUREKA_HOST=wz-service-registry
+      - EUREKA_PORT=8761
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - DB_HOST=wz-user-db
+      - DB_PORT=5432
+      - DB_NAME=wz-user-db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - KAFKA_BROKER=kafka:29092
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75
+    depends_on:
+      wz-user-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      wz-service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/users/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  wz-financial:
+    build: ./wz-financial
+    image: walletzen/wz-financial:latest
+    container_name: wz-financial
+    restart: unless-stopped
+    networks:
+      - wallet-zen
+    ports:
+      - "8094:8094"
+    environment:
+      - EUREKA_HOST=wz-service-registry
+      - EUREKA_PORT=8761
+      - CONFIG_SERVER_URL=http://config-server:8888
+      - DB_HOST=wz-financial-db
+      - DB_PORT=5432
+      - DB_NAME=wz-financial-db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - KAFKA_BROKER=kafka:29092
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75
+    depends_on:
+      wz-financial-db:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+      wz-service-registry:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8094/financial/actuator/health | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
 
 networks:
   wallet-zen:

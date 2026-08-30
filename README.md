@@ -208,50 +208,50 @@ Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
 
 ### Pré-requisitos
 
-Docker + Docker Compose · JDK 17.
+Docker + Docker Compose v2. (JDK 17 só se for subir algum serviço na mão.)
 
-### 1. Infraestrutura (bancos + Kafka)
-
-```bash
-docker compose up -d
-```
-
-Sobe: `wz-user-db` (5433), `wz-financial-db` (5434), `kafka` (9092 / 2181) e
-`redpanda-console` (8081).
-
-### 2. Microsserviços
-
-Suba nesta ordem. Cada serviço tem seu wrapper na respectiva pasta.
+### Tudo em containers (recomendado)
 
 ```bash
-# 1. Service registry (Eureka)
-cd wz-service-registry && ./mvnw spring-boot:run
-
-# 2. Config server  (backend 'git' por default — precisa de GIT_USERNAME e GIT_PASSWORD
-#    no ambiente. Offline/sem token: SPRING_PROFILES_ACTIVE=native)
-cd config-server && ./mvnw spring-boot:run
-
-# 3. API Gateway
-cd wz-api-gateway && ./mvnw spring-boot:run
-
-# 4. wz-user
-cd wz-user && ./mvnw spring-boot:run
-
-# 5. wz-financial (Gradle)
-cd wz-financial && ./gradlew bootRun
+docker compose up -d --build
 ```
 
-No Windows use `mvnw.cmd` / `gradlew.bat`.
-
-Confira que os serviços leram do config-server:
+Sobe **toda a stack**: `wz-user-db` (5433), `wz-financial-db` (5434), `kafka`
+(9092 / 2181), `redpanda-console` (8081), `wz-service-registry` (8761),
+`config-server` (8888), `wz-api-gateway` (8765), `wz-user` (8091) e `wz-financial`
+(8094). A ordem de subida é controlada por healthchecks (`depends_on`).
 
 ```bash
-curl http://localhost:8888/wz-user/default        # config servida
-# no log de cada serviço: "Fetching config from server at : http://localhost:8888"
+docker compose ps          # todos devem ficar 'healthy' em ~1-2 min
+docker compose logs -f wz-user
+docker compose down        # para tudo   (down -v também zera os volumes)
 ```
 
-- Eureka dashboard: `http://localhost:8761`
+O `config-server` no compose usa o backend **`native`** por padrão (a pasta
+`config-repo/` vai embutida na imagem) — sobe sem token. Para usar o backend `git`
+(repo privado): `cp .env.example .env`, preencha o token, e o compose passa a
+exportar `CONFIG_SERVER_PROFILE=git` + `GIT_USERNAME`/`GIT_PASSWORD`.
+
+- Eureka dashboard: `http://localhost:8761` — `WZ-USER`, `WZ-FINANCIAL`, `WZ-API-GATEWAY` como `UP`
 - Gateway: `http://localhost:8765`
+
+### Subir um serviço na mão (debug)
+
+Deixe a infra no compose (`docker compose up -d wz-user-db wz-financial-db kafka
+redpanda-console wz-service-registry config-server`) e rode o serviço-alvo pelo
+wrapper:
+
+```bash
+cd wz-user && ./mvnw spring-boot:run          # Windows: mvnw.cmd
+cd wz-financial && ./gradlew bootRun          # Windows: gradlew.bat
+```
+
+Confira que ele leu do config-server:
+
+```bash
+curl http://localhost:8888/wz-user/default
+# log do serviço: "Fetching config from server at : http://localhost:8888"
+```
 
 ---
 
@@ -276,17 +276,18 @@ curl http://localhost:8888/wz-user/default        # config servida
 
 ```
 Backend/
-├── docker-compose.yml       # postgres x2, kafka, redpanda-console
-├── config-server/           # Spring Cloud Config  (:8888)
+├── docker-compose.yml       # stack inteira: infra + 5 serviços Spring
+├── .env.example             # copie p/ .env se for usar o backend git no compose
+├── config-server/           # Spring Cloud Config  (:8888) — tem Dockerfile
 │   └── config-repo/         # cópia offline (profile 'native') — espelha o repo walletzen-repository
-├── wz-service-registry/     # Eureka Server         (:8761)
-├── wz-api-gateway/          # Spring Cloud Gateway  (:8765)
-├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal)
+├── wz-service-registry/     # Eureka Server         (:8761) — tem Dockerfile
+├── wz-api-gateway/          # Spring Cloud Gateway  (:8765) — tem Dockerfile
+├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal) — tem Dockerfile
 │   └── src/main/java/br/com/walletzen/
 │       ├── core/            # domínio + casos de uso (ports)
 │       ├── adapter/inbound/web/       # REST controller + DTOs
 │       └── adapter/outbound/          # JPA + Kafka publisher
-└── wz-financial/            # microsserviço financeiro    (:8094, camadas)
+└── wz-financial/            # microsserviço financeiro    (:8094, camadas) — tem Dockerfile
     └── src/main/java/br/com/walletzen/
         ├── controller/ service/ repository/ domain/
         └── consumer/       # UserDeletedConsumer (Kafka)

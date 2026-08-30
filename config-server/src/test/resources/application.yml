@@ -1,0 +1,5 @@
+# Nos testes o backend é sempre 'native' (cópia offline em ./config-repo).
+# Assim `./mvnw test` e o CI nunca precisam de GIT_USERNAME/GIT_PASSWORD.
+spring:
+  profiles:
+    active: native

@@ -61,8 +61,8 @@ flowchart TD
         FIN --> FDB
     end
 
-    CFG -. "profile native" .-> LOCAL[("config-repo/")]
-    CFG -. "profile git" .-> REPO[("git: walletzen-repository")]
+    CFG -- "git (default)" --> REPO[("walletzen-repository<br/>(privado)")]
+    CFG -. "native (offline)" .-> LOCAL[("config-repo/")]
 ```
 
 Padrões de projeto por serviço:
@@ -92,12 +92,16 @@ O `config-server` tem dois backends, escolhidos por profile:
 
 | Profile | Backend | Origem | Quando usar |
 | ------- | ------- | ------ | ----------- |
-| `native` (**default**) | arquivos locais | `config-server/config-repo/` | Desenvolvimento; não precisa de rede nem credenciais. |
-| `git` | Spring Cloud Config + Git | repo **`walletzen-repository`** (`search-paths` `wz-user-repo*`, `wz-financial-repo*`, branch `main`) | Cenário "remoto"; exige `GIT_USERNAME`/`GIT_PASSWORD`. |
+| `git` (**default**) | Spring Cloud Config + Git | repo privado **`walletzen-repository`** (`search-paths` `wz-user-repo*`, `wz-financial-repo*`, branch `main`) | Sempre. Exige `GIT_USERNAME` e `GIT_PASSWORD` (Personal Access Token com `Contents: read`). |
+| `native` | arquivos locais | `config-server/config-repo/` (cópia offline, versionada) | Válvula de escape: sem rede/token. `SPRING_PROFILES_ACTIVE=native`. |
 
-Ative o backend Git com `SPRING_PROFILES_ACTIVE=git`. Cada serviço aceita
-`CONFIG_SERVER_URL` (default `http://localhost:8888`); como o import é `optional:`, o
-serviço ainda sobe se o config-server estiver fora do ar (com a config local/default).
+O `config-repo/` local espelha o repositório remoto — mantenha os dois em sincronia ao
+alterar config. Nos testes o backend é sempre `native` (`config-server/src/test/resources/application.yml`),
+então `./mvnw test` e o CI não precisam de token.
+
+Cada serviço aceita `CONFIG_SERVER_URL` (default `http://localhost:8888`); como o import
+é `optional:`, o serviço ainda sobe se o config-server estiver fora do ar (com a config
+local/default).
 
 ---
 
@@ -106,7 +110,7 @@ serviço ainda sobe se o config-server estiver fora do ar (com a config local/de
 | Serviço              | Porta | Context path | Build  | Responsabilidade |
 | -------------------- | ----- | ------------ | ------ | ---------------- |
 | `wz-service-registry`| 8761  | —            | Maven  | Service discovery (Eureka Server). Não se registra nem busca registro. |
-| `config-server`      | 8888  | —            | Maven  | Spring Cloud Config Server. Backend `native` (default, lê de `config-repo/`) ou `git` (`walletzen-repository`, com `SPRING_PROFILES_ACTIVE=git`). Consumido por `wz-user`, `wz-financial` e `wz-api-gateway`. |
+| `config-server`      | 8888  | —            | Maven  | Spring Cloud Config Server. Backend `git` (default, repo privado `walletzen-repository`, exige `GIT_USERNAME`/`GIT_PASSWORD`) ou `native` (`config-repo/`, offline, `SPRING_PROFILES_ACTIVE=native`). Consumido por `wz-user`, `wz-financial` e `wz-api-gateway`. |
 | `wz-api-gateway`     | 8765  | —            | Maven  | Spring Cloud Gateway. Roteia `/users/**` → `lb://wz-user` e `/financial/**` → `lb://wz-financial`. Discovery locator habilitado. |
 | `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários. Publica evento `UserDeleted` no Kafka ao excluir. Arquitetura hexagonal. |
 | `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações financeiras. Consome `UserDeleted` e desativa as transações do usuário. |
@@ -223,8 +227,8 @@ Suba nesta ordem. Cada serviço tem seu wrapper na respectiva pasta.
 # 1. Service registry (Eureka)
 cd wz-service-registry && ./mvnw spring-boot:run
 
-# 2. Config server  (profile 'native' por default — lê de config-server/config-repo/.
-#    Para o backend Git: SPRING_PROFILES_ACTIVE=git + GIT_USERNAME/GIT_PASSWORD)
+# 2. Config server  (backend 'git' por default — precisa de GIT_USERNAME e GIT_PASSWORD
+#    no ambiente. Offline/sem token: SPRING_PROFILES_ACTIVE=native)
 cd config-server && ./mvnw spring-boot:run
 
 # 3. API Gateway
@@ -255,9 +259,9 @@ curl http://localhost:8888/wz-user/default        # config servida
 
 | Variável       | Serviço        | Padrão            | Descrição |
 | -------------- | -------------- | ----------------- | --------- |
-| `SPRING_PROFILES_ACTIVE` | `config-server` | `native` | `native` lê de `config-repo/`; `git` usa o repositório `walletzen-repository` |
-| `GIT_USERNAME` | `config-server`| —                 | Usuário do repositório Git de configuração (só no profile `git`) |
-| `GIT_PASSWORD` | `config-server`| —                 | Senha / token do repositório Git de configuração (só no profile `git`) |
+| `SPRING_PROFILES_ACTIVE` | `config-server` | `git` | `git` (default) usa o repo `walletzen-repository`; `native` lê de `config-repo/` (offline) |
+| `GIT_USERNAME` | `config-server`| —                 | Dono do repositório Git de configuração (ex.: `Ismadrade`). Obrigatório no profile `git` |
+| `GIT_PASSWORD` | `config-server`| —                 | Personal Access Token com `Contents: read` no `walletzen-repository`. Obrigatório no profile `git` |
 | `CONFIG_SERVER_URL` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8888` | Endereço do config-server |
 | `DB_HOST`      | `wz-user`, `wz-financial` | `localhost` | Host do PostgreSQL |
 | `DB_PORT`      | `wz-user` / `wz-financial` | `5433` / `5434` | Porta do PostgreSQL |
@@ -274,7 +278,7 @@ curl http://localhost:8888/wz-user/default        # config servida
 Backend/
 ├── docker-compose.yml       # postgres x2, kafka, redpanda-console
 ├── config-server/           # Spring Cloud Config  (:8888)
-│   └── config-repo/         # configs servidas no profile 'native' (application.yml, wz-*.yml)
+│   └── config-repo/         # cópia offline (profile 'native') — espelha o repo walletzen-repository
 ├── wz-service-registry/     # Eureka Server         (:8761)
 ├── wz-api-gateway/          # Spring Cloud Gateway  (:8765)
 ├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal)

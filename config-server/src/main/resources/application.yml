@@ -5,11 +5,11 @@ spring:
   application:
     name: config-server
   # Backend do Config Server escolhido por profile:
-  #   native (default) -> lê de ./config-repo, sem depender do GitHub
-  #   git              -> lê do repositório walletzen-repository (exige GIT_USERNAME/GIT_PASSWORD)
-  # Sobrescreva com SPRING_PROFILES_ACTIVE=git quando quiser o backend remoto.
+  #   git (default) -> lê do repositório walletzen-repository (exige GIT_USERNAME/GIT_PASSWORD)
+  #   native        -> lê de ./config-repo, cópia offline (sem GitHub, sem token)
+  # Válvula de escape offline: SPRING_PROFILES_ACTIVE=native
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:native}
+    active: ${SPRING_PROFILES_ACTIVE:git}
 
 management:
   endpoints:

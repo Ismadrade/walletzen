@@ -1,40 +1,10 @@
-server:
-  servlet:
-    context-path: /financial
-  port: 8094
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka
-  instance:
-    prefer-ip-address: true
-
 spring:
   application:
     name: wz-financial
-  kafka:
-    bootstrap-servers: ${KAFKA_BROKER:localhost:9092}
-    consumer:
-      group-id: wz-financial-group
-      auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-    topic:
-      wz-user-deleted: wz-user-deleted
-
-
-  datasource:
-    driver-class-name: org.postgresql.Driver
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5434}/${DB_NAME:wz-financial-db}
-    username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
-
-  jpa:
-    hibernate:
-      ddl-auto: create-drop
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        hbm2ddl:
-          import_files_sql_extractor: org.hibernate.tool.schema.internal.script.MultiLineSqlScriptExtractor
+  # Toda a configuração de ambiente (datasource, kafka, eureka) vem do config-server.
+  # optional: -> o serviço sobe mesmo que o config-server esteja fora do ar.
+  config:
+    import: "optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888}"
+  cloud:
+    config:
+      fail-fast: false

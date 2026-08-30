@@ -1,0 +1,5 @@
+server:
+  port: 8765
+
+# As rotas do gateway seguem no application.yml local do serviço por enquanto
+# (migração para cá é um passo isolado — ver docs/plans/01-config-server.md, passo 5).

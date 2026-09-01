@@ -9,10 +9,10 @@ forma assíncrona por Kafka: ao excluir um usuário, suas transações são desa
 automaticamente.
 
 > **Status:** projeto de estudo, sem release. Não há camada de
-> autenticação/autorização. Os bancos sobem com `ddl-auto: create-drop`
-> (dados voláteis a cada restart). O frontend fica no repositório
-> [`walletzen-app`](https://github.com/Ismadrade/walletzen-app) e ainda não está
-> integrado a estas APIs.
+> autenticação/autorização. O schema dos bancos é versionado com Flyway
+> (`ddl-auto: validate`) e os dados persistem entre restarts. O frontend fica no
+> repositório [`walletzen-app`](https://github.com/Ismadrade/walletzen-app) e ainda
+> não está integrado a estas APIs.
 
 ---
 
@@ -139,8 +139,25 @@ local/default).
 | `wz-user-db`        | `postgres:latest` | 5433       | `wz-user`      |
 | `wz-financial-db`   | `postgres:latest` | 5434       | `wz-financial` |
 
-Credenciais padrão: `postgres` / `postgres`. `spring.jpa.hibernate.ddl-auto` =
-`create-drop` nos dois serviços — o schema é recriado a cada inicialização.
+Credenciais padrão: `postgres` / `postgres`.
+
+### Migrations (Flyway)
+
+O schema é versionado com **Flyway**; `spring.jpa.hibernate.ddl-auto` = `validate`
+(o Hibernate confere que entidades e schema batem e falha alto se divergirem). Os
+dados **persistem** entre restarts.
+
+- Scripts em `src/main/resources/db/migration/` de cada serviço.
+- `V<n>__descricao.sql` — versionada, roda uma vez, **nunca editar depois de aplicada**
+  (mudou? nova `V<n+1>`).
+- `R__descricao.sql` — repeatable (views, seeds idempotentes), roda quando o checksum muda.
+- Uma mudança lógica por migration; nome no imperativo (`V2__add_category_to_transaction.sql`).
+- Nada de DDL manual no banco fora do Flyway.
+- Nos **testes** o Flyway fica desligado (H2 + schema do Hibernate); as migrations reais
+  serão exercitadas com Testcontainers na Fase 7.
+
+Recriar do zero: `docker compose down -v && docker compose up -d --build` — o Flyway
+aplica `V1` e sobe o schema.
 
 ---
 
@@ -283,11 +300,13 @@ Backend/
 ├── wz-service-registry/     # Eureka Server         (:8761) — tem Dockerfile
 ├── wz-api-gateway/          # Spring Cloud Gateway  (:8765) — tem Dockerfile
 ├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal) — tem Dockerfile
+│   └── src/main/resources/db/migration/   # V1__init_schema.sql (Flyway)
 │   └── src/main/java/br/com/walletzen/
 │       ├── core/            # domínio + casos de uso (ports)
 │       ├── adapter/inbound/web/       # REST controller + DTOs
 │       └── adapter/outbound/          # JPA + Kafka publisher
 └── wz-financial/            # microsserviço financeiro    (:8094, camadas) — tem Dockerfile
+    └── src/main/resources/db/migration/   # V1__init_schema.sql (Flyway)
     └── src/main/java/br/com/walletzen/
         ├── controller/ service/ repository/ domain/
         └── consumer/       # UserDeletedConsumer (Kafka)

@@ -1,2 +1,0 @@
--- Intentionally empty: tests rely on the Hibernate-generated schema only.
--- Overrides src/main/resources/import.sql on the test classpath.

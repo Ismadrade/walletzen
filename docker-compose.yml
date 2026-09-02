@@ -102,11 +102,14 @@ services:
       - EUREKA_HOST=wz-service-registry
       - EUREKA_PORT=8761
       - CONFIG_SERVER_URL=http://config-server:8888
+      - KEYCLOAK_JWKS_URI=http://keycloak:8080/realms/walletzen/protocol/openid-connect/certs
     depends_on:
       wz-service-registry:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      keycloak:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8765/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
@@ -137,6 +140,23 @@ services:
       retries: 10
       start_period: 40s
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.1
+    container_name: keycloak
+    restart: unless-stopped
+    command: start-dev --import-realm
+    networks:
+      - wallet-zen
+    ports:
+      - "8080:8080"
+    environment:
+      - KC_BOOTSTRAP_ADMIN_USERNAME=${KC_ADMIN:-admin}
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=${KC_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./keycloak/realm-walletzen.json:/opt/keycloak/data/import/realm-walletzen.json:ro
+    # Sem healthcheck: a imagem ubi-micro não tem shell. Os serviços usam jwk-set-uri
+    # lazy e dependem só de 'service_started'.
+
   wz-user:
     build: ./wz-user
     image: walletzen/wz-user:latest
@@ -150,6 +170,7 @@ services:
       - EUREKA_HOST=wz-service-registry
       - EUREKA_PORT=8761
       - CONFIG_SERVER_URL=http://config-server:8888
+      - KEYCLOAK_JWKS_URI=http://keycloak:8080/realms/walletzen/protocol/openid-connect/certs
       - DB_HOST=wz-user-db
       - DB_PORT=5432
       - DB_NAME=wz-user-db
@@ -166,6 +187,8 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      keycloak:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8091/users/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s
@@ -186,6 +209,7 @@ services:
       - EUREKA_HOST=wz-service-registry
       - EUREKA_PORT=8761
       - CONFIG_SERVER_URL=http://config-server:8888
+      - KEYCLOAK_JWKS_URI=http://keycloak:8080/realms/walletzen/protocol/openid-connect/certs
       - DB_HOST=wz-financial-db
       - DB_PORT=5432
       - DB_NAME=wz-financial-db
@@ -202,6 +226,8 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      keycloak:
+        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8094/financial/actuator/health | grep -q '\"status\":\"UP\"'"]
       interval: 10s

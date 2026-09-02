@@ -8,8 +8,8 @@ receita/despesa para cada pessoa (`wz-financial`). Os dois serviços conversam d
 forma assíncrona por Kafka: ao excluir um usuário, suas transações são desativadas
 automaticamente.
 
-> **Status:** projeto de estudo, sem release. Não há camada de
-> autenticação/autorização. O schema dos bancos é versionado com Flyway
+> **Status:** projeto de estudo, sem release. Autenticação/autorização via **Keycloak**
+> (OAuth2/OIDC) — ver [Segurança](#segurança). O schema dos bancos é versionado com Flyway
 > (`ddl-auto: validate`) e os dados persistem entre restarts. O frontend fica no
 > repositório [`walletzen-app`](https://github.com/Ismadrade/walletzen-app) e ainda
 > não está integrado a estas APIs.
@@ -23,6 +23,7 @@ automaticamente.
 - [Serviços](#serviços)
 - [Comunicação assíncrona (Kafka)](#comunicação-assíncrona-kafka)
 - [Bancos de dados](#bancos-de-dados)
+- [Segurança](#segurança)
 - [APIs](#apis)
 - [Modelos de dados](#modelos-de-dados)
 - [Como rodar localmente](#como-rodar-localmente)
@@ -111,9 +112,10 @@ local/default).
 | -------------------- | ----- | ------------ | ------ | ---------------- |
 | `wz-service-registry`| 8761  | —            | Maven  | Service discovery (Eureka Server). Não se registra nem busca registro. |
 | `config-server`      | 8888  | —            | Maven  | Spring Cloud Config Server. Backend `git` (default, repo privado `walletzen-repository`, exige `GIT_USERNAME`/`GIT_PASSWORD`) ou `native` (`config-repo/`, offline, `SPRING_PROFILES_ACTIVE=native`). Consumido por `wz-user`, `wz-financial` e `wz-api-gateway`. |
-| `wz-api-gateway`     | 8765  | —            | Maven  | Spring Cloud Gateway. Roteia `/users/**` → `lb://wz-user` e `/financial/**` → `lb://wz-financial`. Discovery locator habilitado. |
-| `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários. Publica evento `UserDeleted` no Kafka ao excluir. Arquitetura hexagonal. |
-| `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações financeiras. Consome `UserDeleted` e desativa as transações do usuário. |
+| `keycloak`           | 8080  | —            | —      | Identity Provider (OAuth2/OIDC). Realm `walletzen` importado no boot. Ver [Segurança](#segurança). |
+| `wz-api-gateway`     | 8765  | —            | Maven  | Spring Cloud Gateway + resource server: barra requisição sem token (`401`) e repassa o `Authorization`. Roteia `/users/**` → `lb://wz-user` e `/financial/**` → `lb://wz-financial`. |
+| `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários (resource server; `DELETE` exige `ADMIN`). Publica evento `UserDeleted` no Kafka ao excluir. Arquitetura hexagonal. |
+| `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações (resource server; `DELETE` exige `ADMIN`). Consome `UserDeleted` e desativa as transações do usuário. |
 
 ---
 
@@ -158,6 +160,45 @@ dados **persistem** entre restarts.
 
 Recriar do zero: `docker compose down -v && docker compose up -d --build` — o Flyway
 aplica `V1` e sobe o schema.
+
+---
+
+## Segurança
+
+**Keycloak** (`quay.io/keycloak/keycloak`, `start-dev --import-realm`) é o Identity
+Provider. Realm `walletzen` importado de `keycloak/realm-walletzen.json` no boot.
+
+- **Roles de realm:** `USER`, `ADMIN`.
+- **Client:** `walletzen-app` (público, com *direct access grants* para pegar token via `curl`).
+- **Usuários seed:** `alice` / `alice` (role `USER`) · `admin` / `admin` (roles `USER` + `ADMIN`).
+- Console admin: `http://localhost:8080` (login `admin` / `admin` — é o admin do *master*).
+
+Os três serviços expostos são **resource servers OAuth2**: validam o JWT contra o JWKS do
+Keycloak. O `wz-api-gateway` barra na borda (sem token → `401`) e repassa o `Authorization`
+para o downstream; `wz-user` e `wz-financial` revalidam e aplicam as regras de role.
+
+| Rota | Regra |
+| ---- | ----- |
+| `GET`/`POST`/`PUT` em `/users/**` e `/financial/**` | autenticado (qualquer role) |
+| `DELETE /users/{id}` e `DELETE /financial/transactions/{id}` | role `ADMIN` (senão `403`) |
+| `/actuator/health/**`, `/actuator/info` | aberto (healthchecks) |
+
+> **Issuer x Docker:** `issuer-uri` = `http://localhost:8080/realms/walletzen` (casa com o
+> `iss` de tokens pegos pelo host); `jwk-set-uri` aponta para `http://keycloak:8080/...`
+> dentro do compose. Pegue o token **pelo host**, não de dentro de um container.
+
+### Pegar um token e chamar a API
+
+```bash
+TOKEN=$(curl -s \
+  -d grant_type=password -d client_id=walletzen-app \
+  -d username=alice -d password=alice \
+  http://localhost:8080/realms/walletzen/protocol/openid-connect/token | jq -r .access_token)
+
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/users/          # 200
+curl http://localhost:8765/users/                                           # 401 (sem token)
+curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8765/users/<id>   # 403 (alice não é ADMIN)
+```
 
 ---
 
@@ -280,6 +321,9 @@ curl http://localhost:8888/wz-user/default
 | `GIT_USERNAME` | `config-server`| —                 | Dono do repositório Git de configuração (ex.: `Ismadrade`). Obrigatório no profile `git` |
 | `GIT_PASSWORD` | `config-server`| —                 | Personal Access Token com `Contents: read` no `walletzen-repository`. Obrigatório no profile `git` |
 | `CONFIG_SERVER_URL` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8888` | Endereço do config-server |
+| `KEYCLOAK_ISSUER_URI` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8080/realms/walletzen` | Claim `iss` esperado no JWT |
+| `KEYCLOAK_JWKS_URI` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8080/.../certs` | JWKS do Keycloak (no compose: `http://keycloak:8080/...`) |
+| `KC_ADMIN` / `KC_ADMIN_PASSWORD` | `keycloak` | `admin` / `admin` | Admin do *master* (console) |
 | `DB_HOST`      | `wz-user`, `wz-financial` | `localhost` | Host do PostgreSQL |
 | `DB_PORT`      | `wz-user` / `wz-financial` | `5433` / `5434` | Porta do PostgreSQL |
 | `DB_NAME`      | `wz-user` / `wz-financial` | `wz-user-db` / `wz-financial-db` | Nome do banco |
@@ -295,6 +339,8 @@ curl http://localhost:8888/wz-user/default
 Backend/
 ├── docker-compose.yml       # stack inteira: infra + 5 serviços Spring
 ├── .env.example             # copie p/ .env se for usar o backend git no compose
+├── keycloak/
+│   └── realm-walletzen.json # realm importado pelo Keycloak no boot (roles, client, usuários seed)
 ├── config-server/           # Spring Cloud Config  (:8888) — tem Dockerfile
 │   └── config-repo/         # cópia offline (profile 'native') — espelha o repo walletzen-repository
 ├── wz-service-registry/     # Eureka Server         (:8761) — tem Dockerfile

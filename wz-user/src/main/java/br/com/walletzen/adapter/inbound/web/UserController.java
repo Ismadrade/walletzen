@@ -12,6 +12,7 @@ import br.com.walletzen.core.port.input.EditUserUseCase;
 import br.com.walletzen.core.port.input.GetUserUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -81,6 +82,7 @@ public class UserController {
     }
 
     @DeleteMapping("{userId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable("userId") UUID userId) {
         deleteUserUseCase.deleteUser(userId);
         return ResponseEntity.status(HttpStatus.OK).build();

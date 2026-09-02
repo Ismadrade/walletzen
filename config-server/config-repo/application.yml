@@ -11,6 +11,17 @@ eureka:
   instance:
     prefer-ip-address: true
 
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # issuer-uri casa com o claim `iss` de tokens pegos pelo host (localhost:8080).
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/walletzen}
+          # jwk-set-uri explícito => o resource server não busca metadata OIDC no boot
+          # (sobe antes do Keycloak). No compose o env aponta para http://keycloak:8080/...
+          jwk-set-uri: ${KEYCLOAK_JWKS_URI:http://localhost:8080/realms/walletzen/protocol/openid-connect/certs}
+
 management:
   endpoints:
     web:

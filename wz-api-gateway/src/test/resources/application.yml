@@ -1,10 +1,15 @@
-# Perfil de teste: não depende de config-server nem de Eureka.
+# Perfil de teste: não depende de config-server, Eureka nem Keycloak.
 spring:
   cloud:
     config:
       enabled: false
   config:
     import: ""
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9999/certs   # dummy — nunca buscado (mockJwt nos testes)
 
 eureka:
   client:

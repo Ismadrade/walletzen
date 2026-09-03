@@ -15,6 +15,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -62,6 +63,16 @@ public class UserPersistencePortImpl implements UserPersistencePort {
     @Override
     public User findById(UUID id) throws UserNotFoundException {
         return userPersistenceMapper.toDomain(userJpaRepository.findUserById(id).orElseThrow(() -> new UserNotFoundException(id)));
+    }
+
+    @Override
+    public Optional<User> findByEmail(String email) {
+        return userJpaRepository.findByEmail(email).map(userPersistenceMapper::toDomain);
+    }
+
+    @Override
+    public Optional<User> findByCpf(String cpf) {
+        return userJpaRepository.findByCpf(cpf).map(userPersistenceMapper::toDomain);
     }
 
     @Override

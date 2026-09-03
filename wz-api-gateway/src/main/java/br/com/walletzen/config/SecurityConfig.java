@@ -24,7 +24,9 @@ public class SecurityConfig {
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchange -> exchange
                         .pathMatchers("/actuator/health/**", "/actuator/info").permitAll()
-                        .pathMatchers(HttpMethod.DELETE, "/users/**", "/financial/**").hasRole("ADMIN")
+                        // DELETE de usuário é ADMIN-only; DELETE de transação é "dono ou admin",
+                        // checado no wz-financial (não dá para decidir dono aqui na borda).
+                        .pathMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
                         .anyExchange().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(reactiveJwtAuthenticationConverter())));

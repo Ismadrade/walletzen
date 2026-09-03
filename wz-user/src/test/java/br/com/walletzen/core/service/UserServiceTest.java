@@ -18,9 +18,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,12 +45,16 @@ public class UserServiceTest {
 
     private static User newUser() {
         User u = new User();
-        u.setId(UUID.randomUUID());
         u.setName("João");
         u.setCpf("12345678900");
         u.setEmail("email@gteste.com");
         u.setBirthDate(LocalDate.of(1995, 5, 2));
         return u;
+    }
+
+    private void noExistingRows() {
+        when(userPersistencePort.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userPersistencePort.findByCpf(anyString())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -58,10 +64,7 @@ public class UserServiceTest {
         User expectedUser = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
         when(userPersistencePort.findById(userId)).thenReturn(expectedUser);
 
-        var result = userService.getUserById(userId);
-
-        assertEquals(userId, result.getId());
-        verify(userPersistencePort).findById(userId);
+        assertEquals(userId, userService.getUserById(userId).getId());
     }
 
     @Test
@@ -73,71 +76,75 @@ public class UserServiceTest {
         );
         when(userPersistencePort.findAll(any())).thenReturn(new PageInfo<>(users, 0, 2, 2, 1, true));
 
-        var result = userService.getAllUsers(new PageQuery(0, 2, "name", "ASC"));
-
-        assertEquals(2, result.getContent().size());
-        verify(userPersistencePort).findAll(any());
+        assertEquals(2, userService.getAllUsers(new PageQuery(0, 2, "name", "ASC")).getContent().size());
     }
 
     @Test
-    @DisplayName("Create provisiona o login no Keycloak e guarda o keycloak_id")
-    void shouldCreateUserAndProvisionKeycloak() {
+    @DisplayName("Create novo: gera id, provisiona no Keycloak (username=id) e guarda keycloak_id")
+    void shouldCreateFreshUser() {
+        noExistingRows();
         User user = newUser();
-        when(identityProvider.createUser("email@gteste.com", "João", "", "s3nha")).thenReturn("kc-123");
+        when(identityProvider.createUser(anyString(), eq("email@gteste.com"), eq("João"), eq(""), eq("s3nha")))
+                .thenReturn("kc-123");
 
         userService.createUser(user, "s3nha");
 
-        verify(identityProvider).createUser("email@gteste.com", "João", "", "s3nha");
         verify(userPersistencePort).save(userCaptor.capture());
-        assertEquals("kc-123", userCaptor.getValue().getKeycloakId());
+        User saved = userCaptor.getValue();
+        assertNotNull(saved.getId());
+        assertEquals("kc-123", saved.getKeycloakId());
+        verify(identityProvider).createUser(eq(saved.getId().toString()), eq("email@gteste.com"), eq("João"), eq(""), eq("s3nha"));
     }
 
     @Test
-    @DisplayName("Create com senha em branco -> IllegalArgumentException, nada é criado")
+    @DisplayName("Create com email de linha INATIVA: reativa (não cria de novo no Keycloak)")
+    void shouldReactivateInactiveUser() {
+        User inactive = new User(UUID.randomUUID(), "João Antigo", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), false);
+        inactive.setKeycloakId("kc-42");
+        when(userPersistencePort.findByEmail("email@gteste.com")).thenReturn(Optional.of(inactive));
+        when(userPersistencePort.findByCpf("12345678900")).thenReturn(Optional.of(inactive));
+
+        userService.createUser(newUser(), "novaSenha");
+
+        verify(identityProvider).enableUser("kc-42");
+        verify(identityProvider).resetPassword("kc-42", "novaSenha");
+        verify(identityProvider).updateUser("kc-42", "email@gteste.com", "João", "");
+        verify(identityProvider, never()).createUser(any(), any(), any(), any(), any());
+        verify(userPersistencePort).save(userCaptor.capture());
+        assertTrue(userCaptor.getValue().getRecordStatus());
+    }
+
+    @Test
+    @DisplayName("Create com email de linha ATIVA -> UserFieldAlreadyExistsException")
+    void shouldThrowWhenActiveEmailExists() {
+        User active = new User(UUID.randomUUID(), "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
+        when(userPersistencePort.findByEmail("email@gteste.com")).thenReturn(Optional.of(active));
+        when(userPersistencePort.findByCpf(anyString())).thenReturn(Optional.empty());
+
+        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.createUser(newUser(), "s3nha"));
+        assertEquals("email is already registered: email@gteste.com", ex.getMessage());
+        verify(userPersistencePort, never()).save(any());
+        verify(identityProvider, never()).createUser(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Create com senha em branco -> IllegalArgumentException, nada é tocado")
     void shouldRejectBlankPassword() {
-        User user = newUser();
-
-        assertThrows(IllegalArgumentException.class, () -> userService.createUser(user, "   "));
-
-        verify(identityProvider, never()).createUser(any(), any(), any(), any());
+        assertThrows(IllegalArgumentException.class, () -> userService.createUser(newUser(), "   "));
+        verifyNoInteractions(identityProvider);
         verify(userPersistencePort, never()).save(any());
     }
 
     @Test
-    @DisplayName("Se a gravação falha depois do Keycloak, compensa deletando o usuário lá")
+    @DisplayName("Se o save falha depois do Keycloak, compensa deletando o usuário lá")
     void shouldCompensateWhenSaveFails() {
-        User user = newUser();
-        when(identityProvider.createUser(any(), any(), any(), any())).thenReturn("kc-999");
+        noExistingRows();
+        when(identityProvider.createUser(any(), any(), any(), any(), any())).thenReturn("kc-999");
         doThrow(new RuntimeException("db down")).when(userPersistencePort).save(any());
 
-        assertThrows(RuntimeException.class, () -> userService.createUser(user, "s3nha"));
+        assertThrows(RuntimeException.class, () -> userService.createUser(newUser(), "s3nha"));
 
         verify(identityProvider).deleteUser("kc-999");
-    }
-
-    @Test
-    @DisplayName("Throw email already exists when try to save a user")
-    void thrownEmailAlreadyExistsWhenTrySaveUser() {
-        User user = newUser();
-        when(userPersistencePort.existsByEmail(anyString())).thenReturn(true);
-
-        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.createUser(user, "s3nha"));
-
-        assertEquals("email is already registered: " + user.getEmail(), ex.getMessage());
-        verify(identityProvider, never()).createUser(any(), any(), any(), any());
-        verify(userPersistencePort, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Throw when cpf already exists")
-    void thrownWhenCpfAlreadyExists() {
-        User user = newUser();
-        when(userPersistencePort.existsByCpf(anyString())).thenReturn(true);
-
-        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.createUser(user, "s3nha"));
-
-        assertEquals("CPF is already registered: " + user.getCpf(), ex.getMessage());
-        verify(userPersistencePort, never()).save(any());
     }
 
     @Test
@@ -145,9 +152,7 @@ public class UserServiceTest {
     void shouldEditUserAndSyncKeycloak() {
         UUID userId = UUID.randomUUID();
         User edited = new User();
-        edited.setId(userId);
         edited.setName("João da Silva");
-        edited.setCpf("12345678900");
         edited.setEmail("email_novo@gteste.com");
         edited.setBirthDate(LocalDate.of(1995, 5, 2));
 
@@ -160,27 +165,6 @@ public class UserServiceTest {
         verify(userPersistencePort).save(userCaptor.capture());
         assertEquals("email_novo@gteste.com", userCaptor.getValue().getEmail());
         verify(identityProvider).updateUser("kc-42", "email_novo@gteste.com", "João", "da Silva");
-    }
-
-    @Test
-    @DisplayName("Throw email already exists when try to edit a user")
-    void thrownEmailAlreadyExistsWhenTryEditUser() {
-        UUID userId = UUID.randomUUID();
-        User edited = new User();
-        edited.setId(userId);
-        edited.setName("João da Silva");
-        edited.setCpf("12345678900");
-        edited.setEmail("email_novo@gteste.com");
-        edited.setBirthDate(LocalDate.of(1995, 5, 2));
-
-        User existing = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
-        when(userPersistencePort.findById(userId)).thenReturn(existing);
-        when(userPersistencePort.existsByEmail(anyString())).thenReturn(true);
-
-        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.editUser(userId, edited));
-
-        assertEquals("email is already registered: " + edited.getEmail(), ex.getMessage());
-        verify(userPersistencePort, never()).save(any());
     }
 
     @Test

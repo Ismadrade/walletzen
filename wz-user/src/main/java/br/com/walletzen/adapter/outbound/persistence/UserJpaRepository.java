@@ -15,6 +15,9 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, UUID> {
     boolean existsByEmail(String email);
     boolean existsByCpf(String cpf);
 
+    Optional<UserEntity> findByEmail(String email);
+    Optional<UserEntity> findByCpf(String cpf);
+
     @Query("SELECT u FROM UserEntity u WHERE u.recordStatus = true")
     Page<UserEntity> findAllActiveUsers(Pageable pageable);
 

@@ -6,6 +6,7 @@ import br.com.walletzen.dto.response.TransactionResponseDTO;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
+import br.com.walletzen.security.Caller;
 import br.com.walletzen.service.TransactionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -63,7 +64,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("GET /transactions/user/{userId} returns a page of the user's transactions with default paging")
     void getByUser() throws Exception {
-        when(transactionService.getTransactionsByUser(eq(userId), isNull(), isNull(), eq(0), eq(10)))
+        when(transactionService.getTransactionsByUser(eq(userId), isNull(), isNull(), eq(0), eq(10), any(Caller.class)))
                 .thenReturn(new PageResponseDTO<>(List.of(response(), response()), 0, 10, 2, 1, true));
 
         mockMvc.perform(get("/transactions/user/{userId}", userId))
@@ -78,7 +79,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("GET /transactions/user/{userId} forwards the year/month/page/size query params")
     void getByUserWithFilters() throws Exception {
-        when(transactionService.getTransactionsByUser(eq(userId), eq(2026), eq(8), eq(2), eq(25)))
+        when(transactionService.getTransactionsByUser(eq(userId), eq(2026), eq(8), eq(2), eq(25), any(Caller.class)))
                 .thenReturn(new PageResponseDTO<>(List.of(response()), 2, 25, 60, 3, false));
 
         mockMvc.perform(get("/transactions/user/{userId}", userId)
@@ -91,7 +92,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("GET /transactions/user/{userId} returns 400 when the service rejects the filter")
     void getByUserInvalidFilter() throws Exception {
-        when(transactionService.getTransactionsByUser(eq(userId), isNull(), eq(8), eq(0), eq(10)))
+        when(transactionService.getTransactionsByUser(eq(userId), isNull(), eq(8), eq(0), eq(10), any(Caller.class)))
                 .thenThrow(new InvalidFilterException("month filter requires year"));
 
         mockMvc.perform(get("/transactions/user/{userId}", userId).param("month", "8"))
@@ -109,7 +110,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("GET /transactions/{id} returns the transaction")
     void getById() throws Exception {
-        when(transactionService.getTransactionById(transactionId)).thenReturn(response());
+        when(transactionService.getTransactionById(eq(transactionId), any(Caller.class))).thenReturn(response());
 
         mockMvc.perform(get("/transactions/{id}", transactionId))
                 .andExpect(status().isOk())
@@ -120,7 +121,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("GET /transactions/{id} returns 404 when the transaction is missing")
     void getByIdNotFound() throws Exception {
-        when(transactionService.getTransactionById(transactionId))
+        when(transactionService.getTransactionById(eq(transactionId), any(Caller.class)))
                 .thenThrow(new TransactionNotFoundException(transactionId));
 
         mockMvc.perform(get("/transactions/{id}", transactionId))
@@ -175,7 +176,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("PUT /transactions/{id} updates the transaction")
     void update() throws Exception {
-        when(transactionService.updateTransaction(eq(transactionId), any())).thenReturn(response());
+        when(transactionService.updateTransaction(eq(transactionId), any(), any(Caller.class))).thenReturn(response());
 
         mockMvc.perform(put("/transactions/{id}", transactionId)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -186,7 +187,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("PUT /transactions/{id} returns 404 when the transaction is missing")
     void updateNotFound() throws Exception {
-        when(transactionService.updateTransaction(eq(transactionId), any()))
+        when(transactionService.updateTransaction(eq(transactionId), any(), any(Caller.class)))
                 .thenThrow(new TransactionNotFoundException(transactionId));
 
         mockMvc.perform(put("/transactions/{id}", transactionId)
@@ -201,6 +202,6 @@ class TransactionControllerTest {
         mockMvc.perform(delete("/transactions/{id}", transactionId))
                 .andExpect(status().isNoContent());
 
-        verify(transactionService).deleteTransaction(transactionId);
+        verify(transactionService).deleteTransaction(eq(transactionId), any(Caller.class));
     }
 }

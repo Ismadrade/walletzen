@@ -184,8 +184,11 @@ para o downstream; `wz-user` e `wz-financial` revalidam e aplicam as regras de r
 `wz_user` (pessoa) e usuário do Keycloak (login) são o **mesmo cadastro**, gerido pelo `wz-user`:
 
 - `POST /users/` (campo `password` no body, *write-only*) cria a pessoa **e** o usuário no
-  Keycloak (role `USER`), guardando o `keycloak_id` na linha. A pessoa já consegue logar.
-- `PUT /users/{id}` propaga `email`/nome para o Keycloak.
+  Keycloak (role `USER`), guardando o `keycloak_id` na linha. O `username` do Keycloak é o
+  **`wz_user.id`** (imutável); o login é por email. A pessoa já consegue logar.
+- Recriar um usuário deletado (mesmo email/CPF de uma linha inativa) → **reativa** a linha
+  (mesmo `id`) e reabilita/reseta a senha no Keycloak.
+- `PUT /users/{id}` propaga `email`/nome para o Keycloak (só o email muda; o `username` não).
 - `DELETE /users/{id}` faz o *soft delete* da linha **e** desabilita (`enabled=false`) o
   usuário no Keycloak.
 
@@ -195,9 +198,15 @@ transacional forte fica para a Fase 4 (Outbox).
 
 | Rota | Regra |
 | ---- | ----- |
-| `GET`/`POST`/`PUT` em `/users/**` e `/financial/**` | autenticado (qualquer role) |
-| `DELETE /users/{id}` e `DELETE /financial/transactions/{id}` | role `ADMIN` (senão `403`) |
+| `GET`/`POST`/`PUT` em `/users/**` | autenticado (qualquer role) |
+| `DELETE /users/{id}` | role `ADMIN` (senão `403`) |
+| `POST /financial/transactions` | autenticado |
+| `GET`/`PUT`/`DELETE` em `/financial/transactions/**` | **dono** da transação **ou** `ADMIN` (senão `403`) |
 | `/actuator/health/**`, `/actuator/info` | aberto (healthchecks) |
+
+> **Dono:** o `wz-financial` identifica o dono pelo claim `preferred_username` do token
+> (que é o `wz_user.id`, já que o `username` do Keycloak é esse id). Usuários seed do realm
+> (`alice`, `admin`) não têm um `wz_user.id` → não são donos de nada; `admin` passa pela role.
 
 > **Issuer x Docker:** `issuer-uri` = `http://localhost:8080/realms/walletzen` (casa com o
 > `iss` de tokens pegos pelo host); `jwk-set-uri` aponta para `http://keycloak:8080/...`
@@ -235,19 +244,19 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 | ------ | -------------- | --------- |
 | GET    | `/`            | Lista usuários paginada. Query params: `page` (0), `size` (10), `sort` (`name`), `direction` (`ASC`). Retorna `PageInfo<UserResponse>`. |
 | GET    | `/{userId}`    | Busca usuário por `UUID`. |
-| POST   | `/`            | Cria usuário **e o login no Keycloak**. Body `UserRequest` — inclui `password` (write-only, obrigatório). `201 Created`. Valida e-mail e CPF únicos; `password` em branco → `400`. |
-| PUT    | `/{userId}`    | Edita `name`, `email` e `birthDate`. |
-| DELETE | `/{userId}`    | *Soft delete* + publica evento Kafka. |
+| POST   | `/`            | Cria usuário **e o login no Keycloak**. Body `UserRequest` — inclui `password` (write-only, obrigatório). `201 Created`. `password` em branco → `400`. Se o e-mail/CPF for de um usuário **deletado**, reativa a linha (mesmo `id`) e reseta a senha. |
+| PUT    | `/{userId}`    | Edita `name`, `email` e `birthDate` (sincroniza no Keycloak). |
+| DELETE | `/{userId}`    | *Soft delete* + publica evento Kafka + desabilita no Keycloak. **ADMIN**. |
 
 ### wz-financial — base `http://localhost:8094/financial/transactions` (ou `http://localhost:8765/financial/transactions`)
 
 | Método | Caminho            | Descrição |
 | ------ | ------------------ | --------- |
-| GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Ordena por `createdAt` desc. Retorna `PageResponseDTO<TransactionResponseDTO>` (mesmo formato do `PageInfo` do `wz-user`). Filtro `year`/`month` recai sobre `createdAt`. |
-| GET    | `/{id}`            | Busca transação ativa por `UUID`. |
+| GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Ordena por `createdAt` desc. **Dono ou ADMIN** (`403` para outro usuário). |
+| GET    | `/{id}`            | Busca transação ativa por `UUID`. **Dono ou ADMIN**. |
 | POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (validado: `userId`/`amount` obrigatórios, `amount` positivo, `transactionType` não vazio). `201 Created`. |
-| PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. |
-| DELETE | `/{id}`            | *Soft delete* (`204 No Content`). |
+| PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. **Dono ou ADMIN**. |
+| DELETE | `/{id}`            | *Soft delete* (`204 No Content`). **Dono ou ADMIN** — um `USER` pode apagar as próprias transações, não as de outros. |
 
 Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
 (`ExceptionResponse` / `UserNotFoundException`, `UserFieldAlreadyExistsException`,

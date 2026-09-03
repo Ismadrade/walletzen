@@ -1,19 +1,23 @@
 package br.com.walletzen.controller;
 
 import br.com.walletzen.config.SecurityConfig;
+import br.com.walletzen.security.Caller;
 import br.com.walletzen.service.TransactionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,18 +43,28 @@ class TransactionControllerSecurityTest {
     }
 
     @Test
-    @DisplayName("DELETE com role USER -> 403")
-    void deleteAsUser() throws Exception {
-        mockMvc.perform(delete("/transactions/{id}", UUID.randomUUID())
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_USER"))))
-                .andExpect(status().isForbidden());
+    @DisplayName("DELETE com qualquer token autenticado passa pelo filtro (a checagem de dono é no service)")
+    void deleteAuthenticated() throws Exception {
+        UUID id = UUID.randomUUID();
+        mockMvc.perform(delete("/transactions/{id}", id).with(jwt()))
+                .andExpect(status().isNoContent());
+
+        verify(transactionService).deleteTransaction(eq(id), any(Caller.class));
     }
 
     @Test
-    @DisplayName("DELETE com role ADMIN -> 204")
-    void deleteAsAdmin() throws Exception {
-        mockMvc.perform(delete("/transactions/{id}", UUID.randomUUID())
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+    @DisplayName("O controller repassa o preferred_username (wz_user.id) e a role ADMIN no Caller")
+    void forwardsCallerIdentity() throws Exception {
+        UUID id = UUID.randomUUID();
+        UUID wzUserId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/transactions/{id}", id)
+                        .with(jwt()
+                                .jwt(j -> j.claim("preferred_username", wzUserId.toString()))
+                                .authorities(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .andExpect(status().isNoContent());
+
+        verify(transactionService).deleteTransaction(eq(id),
+                argThat(c -> c.admin() && wzUserId.equals(c.wzUserId())));
     }
 }

@@ -3,7 +3,6 @@ package br.com.walletzen.adapter.outbound.persistence.entities;
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -17,9 +16,9 @@ import java.util.UUID;
 @AllArgsConstructor
 public class UserEntity {
 
+    // id atribuído pelo core (UserService) antes de criar o usuário no Keycloak,
+    // para que o username do Keycloak possa ser o próprio wz_user.id (imutável).
     @Id
-    @GeneratedValue
-    @UuidGenerator
     @Column(name = "ID", updatable = false, nullable = false)
     private UUID id;
 

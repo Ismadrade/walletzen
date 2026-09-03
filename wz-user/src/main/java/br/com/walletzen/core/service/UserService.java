@@ -16,6 +16,7 @@ import br.com.walletzen.core.port.output.UserPersistencePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public class UserService implements GetUserUseCase, CreateUserUseCase, EditUserUseCase, DeleteUserUseCase {
@@ -49,22 +50,60 @@ public class UserService implements GetUserUseCase, CreateUserUseCase, EditUserU
         if (rawPassword == null || rawPassword.isBlank()) {
             throw new IllegalArgumentException("password is required");
         }
-        if (userRepository.existsByEmail(user.getEmail())) {
+
+        Optional<User> byEmail = userRepository.findByEmail(user.getEmail());
+        Optional<User> byCpf = userRepository.findByCpf(user.getCpf());
+
+        byEmail.filter(User::getRecordStatus).ifPresent(u -> {
             throw new UserFieldAlreadyExistsException("email", user.getEmail());
-        }
-        if (userRepository.existsByCpf(user.getCpf())) {
+        });
+        byCpf.filter(User::getRecordStatus).ifPresent(u -> {
             throw new UserFieldAlreadyExistsException("CPF", user.getCpf());
+        });
+
+        Optional<User> inactive = byEmail.or(() -> byCpf); // aqui, se presente, é inativo
+        if (inactive.isPresent()) {
+            if (byEmail.isPresent() && byCpf.isPresent()
+                    && !byEmail.get().getId().equals(byCpf.get().getId())) {
+                throw new UserFieldAlreadyExistsException("email", user.getEmail());
+            }
+            reactivate(inactive.get(), user, rawPassword);
+            return;
         }
 
-        // Keycloak primeiro: se a gravação da linha falhar, compensamos removendo o usuário lá.
-        String[] name = splitName(user.getName());
-        String keycloakId = identityProvider.createUser(user.getEmail(), name[0], name[1], rawPassword);
-        user.setKeycloakId(keycloakId);
+        create(user, rawPassword);
+    }
 
+    private void create(User user, String rawPassword) {
+        UUID id = UUID.randomUUID();
+        user.setId(id);
+        String[] name = splitName(user.getName());
+        String keycloakId = identityProvider.createUser(id.toString(), user.getEmail(), name[0], name[1], rawPassword);
+        user.setKeycloakId(keycloakId);
         try {
             userRepository.save(user);
         } catch (RuntimeException e) {
             identityProvider.deleteUser(keycloakId);
+            throw e;
+        }
+    }
+
+    private void reactivate(User existing, User incoming, String rawPassword) {
+        String[] name = splitName(incoming.getName());
+        // Keycloak primeiro (simétrico ao create); compensa re-desabilitando se o save falhar.
+        identityProvider.enableUser(existing.getKeycloakId());
+        identityProvider.resetPassword(existing.getKeycloakId(), rawPassword);
+        identityProvider.updateUser(existing.getKeycloakId(), incoming.getEmail(), name[0], name[1]);
+
+        existing.setName(incoming.getName());
+        existing.setEmail(incoming.getEmail());
+        existing.setCpf(incoming.getCpf());
+        existing.setBirthDate(incoming.getBirthDate());
+        existing.setRecordStatus(true);
+        try {
+            userRepository.save(existing);
+        } catch (RuntimeException e) {
+            identityProvider.disableUser(existing.getKeycloakId());
             throw e;
         }
     }

@@ -28,13 +28,15 @@ public class KeycloakIdentityProviderAdapter implements IdentityProviderPort {
     }
 
     @Override
-    public String createUser(String email, String firstName, String lastName, String rawPassword) {
+    public String createUser(String wzUserId, String email, String firstName, String lastName, String rawPassword) {
         try {
             URI location = http.post()
                     .uri("/users")
                     .headers(h -> h.setBearerAuth(tokenProvider.token()))
                     .body(Map.of(
-                            "username", email,
+                            // username = wz_user.id (imutável) -> vira o claim `preferred_username`
+                            // no token, usado pelo wz-financial para autorização por dono.
+                            "username", wzUserId,
                             "email", email,
                             "firstName", firstName,
                             "lastName", lastName,
@@ -71,6 +73,25 @@ public class KeycloakIdentityProviderAdapter implements IdentityProviderPort {
     public void updateUser(String identityId, String email, String firstName, String lastName) {
         put(identityId, Map.of("email", email, "firstName", firstName, "lastName", lastName),
                 "atualizar usuário");
+    }
+
+    @Override
+    public void enableUser(String identityId) {
+        put(identityId, Map.of("enabled", true), "reabilitar usuário");
+    }
+
+    @Override
+    public void resetPassword(String identityId, String rawPassword) {
+        try {
+            http.put()
+                    .uri("/users/{id}/reset-password", identityId)
+                    .headers(h -> h.setBearerAuth(tokenProvider.token()))
+                    .body(Map.of("type", "password", "value", rawPassword, "temporary", false))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException e) {
+            throw new IdentityProviderException("Falha ao redefinir a senha no Keycloak: " + e.getMessage(), e);
+        }
     }
 
     @Override

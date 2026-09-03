@@ -9,12 +9,14 @@ import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.mapper.TransactionMapper;
 import br.com.walletzen.repository.TransactionRepository;
+import br.com.walletzen.security.Caller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,7 +47,8 @@ public class TransactionService {
      */
     @Transactional(readOnly = true)
     public PageResponseDTO<TransactionResponseDTO> getTransactionsByUser(UUID userId, Integer year, Integer month,
-                                                                        int page, int size) {
+                                                                        int page, int size, Caller caller) {
+        assertOwnerOrAdmin(userId, caller);
         Pageable pageable = buildPageable(page, size);
         DateRange range = resolveRange(year, month);
 
@@ -92,9 +95,10 @@ public class TransactionService {
     }
 
     @Transactional(readOnly = true)
-    public TransactionResponseDTO getTransactionById(UUID id) {
+    public TransactionResponseDTO getTransactionById(UUID id, Caller caller) {
         Transaction transaction = transactionRepository.findByIdAndRecordStatus(id, true)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
+        assertOwnerOrAdmin(transaction.getUserId(), caller);
         return transactionMapper.toResponse(transaction);
     }
 
@@ -106,9 +110,10 @@ public class TransactionService {
     }
 
     @Transactional
-    public TransactionResponseDTO updateTransaction(UUID id, TransactionRequestDTO dto) {
+    public TransactionResponseDTO updateTransaction(UUID id, TransactionRequestDTO dto, Caller caller) {
         Transaction transaction = transactionRepository.findByIdAndRecordStatus(id, true)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
+        assertOwnerOrAdmin(transaction.getUserId(), caller);
 
         transaction.setTransactionType(TransactionType.fromString(dto.transactionType()));
         transaction.setAmount(dto.amount());
@@ -117,9 +122,10 @@ public class TransactionService {
     }
 
     @Transactional
-    public void deleteTransaction(UUID id) {
+    public void deleteTransaction(UUID id, Caller caller) {
         Transaction transaction = transactionRepository.findByIdAndRecordStatus(id, true)
                 .orElseThrow(() -> new TransactionNotFoundException(id));
+        assertOwnerOrAdmin(transaction.getUserId(), caller);
         transaction.setRecordStatus(false);
         transactionRepository.save(transaction);
     }
@@ -128,5 +134,12 @@ public class TransactionService {
     public void deleteByUserId(UUID userId) {
         transactionRepository.deleteTransactionsByUserId(userId, LocalDateTime.now());
         log.info("Transactions has been deleted for userId {}", userId);
+    }
+
+    /** Dono da transação ou ADMIN; senão 403. */
+    private void assertOwnerOrAdmin(UUID resourceOwnerId, Caller caller) {
+        if (!caller.owns(resourceOwnerId)) {
+            throw new AccessDeniedException("caller is not the owner of this resource");
+        }
     }
 }

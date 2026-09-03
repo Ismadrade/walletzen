@@ -9,6 +9,7 @@ import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.mapper.TransactionMapper;
+import br.com.walletzen.security.Caller;
 import br.com.walletzen.repository.TransactionRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,7 @@ class TransactionServiceTest {
 
     private final UUID userId = UUID.randomUUID();
     private final UUID transactionId = UUID.randomUUID();
+    private final Caller CALLER = new Caller(userId, false); // dono das transações do teste
 
     private Transaction sampleTransaction() {
         return Transaction.builder()
@@ -77,7 +79,7 @@ class TransactionServiceTest {
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
         PageResponseDTO<TransactionResponseDTO> result =
-                transactionService.getTransactionsByUser(userId, null, null, 0, 10);
+                transactionService.getTransactionsByUser(userId, null, null, 0, 10, CALLER);
 
         assertEquals(2, result.content().size());
         assertEquals(0, result.pageNumber());
@@ -94,7 +96,7 @@ class TransactionServiceTest {
                 .thenReturn(new PageImpl<>(List.of(sampleTransaction())));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
-        transactionService.getTransactionsByUser(userId, 2026, 8, 0, 10);
+        transactionService.getTransactionsByUser(userId, 2026, 8, 0, 10, CALLER);
 
         assertEquals(LocalDateTime.of(2026, 8, 1, 0, 0), start.getValue());
         assertEquals(LocalDateTime.of(2026, 9, 1, 0, 0), end.getValue());
@@ -109,7 +111,7 @@ class TransactionServiceTest {
                 eq(userId), start.capture(), end.capture(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        transactionService.getTransactionsByUser(userId, 2026, null, 0, 10);
+        transactionService.getTransactionsByUser(userId, 2026, null, 0, 10, CALLER);
 
         assertEquals(LocalDateTime.of(2026, 1, 1, 0, 0), start.getValue());
         assertEquals(LocalDateTime.of(2027, 1, 1, 0, 0), end.getValue());
@@ -119,7 +121,7 @@ class TransactionServiceTest {
     @DisplayName("getTransactionsByUser rejects a month filter without a year")
     void getTransactionsByUserMonthWithoutYear() {
         assertThrows(InvalidFilterException.class,
-                () -> transactionService.getTransactionsByUser(userId, null, 8, 0, 10));
+                () -> transactionService.getTransactionsByUser(userId, null, 8, 0, 10, CALLER));
         verifyNoInteractions(transactionRepository);
     }
 
@@ -127,7 +129,7 @@ class TransactionServiceTest {
     @DisplayName("getTransactionsByUser rejects an out-of-range month")
     void getTransactionsByUserInvalidMonth() {
         assertThrows(InvalidFilterException.class,
-                () -> transactionService.getTransactionsByUser(userId, 2026, 13, 0, 10));
+                () -> transactionService.getTransactionsByUser(userId, 2026, 13, 0, 10, CALLER));
         verifyNoInteractions(transactionRepository);
     }
 
@@ -135,7 +137,7 @@ class TransactionServiceTest {
     @DisplayName("getTransactionsByUser rejects a negative page")
     void getTransactionsByUserNegativePage() {
         assertThrows(InvalidFilterException.class,
-                () -> transactionService.getTransactionsByUser(userId, null, null, -1, 10));
+                () -> transactionService.getTransactionsByUser(userId, null, null, -1, 10, CALLER));
         verifyNoInteractions(transactionRepository);
     }
 
@@ -146,7 +148,7 @@ class TransactionServiceTest {
         when(transactionRepository.findActiveByUser(eq(userId), isNull(), isNull(), pageable.capture()))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        transactionService.getTransactionsByUser(userId, null, null, 0, 500);
+        transactionService.getTransactionsByUser(userId, null, null, 0, 500, CALLER);
 
         assertEquals(TransactionService.MAX_PAGE_SIZE, pageable.getValue().getPageSize());
     }
@@ -158,7 +160,7 @@ class TransactionServiceTest {
                 .thenReturn(Optional.of(sampleTransaction()));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
-        TransactionResponseDTO result = transactionService.getTransactionById(transactionId);
+        TransactionResponseDTO result = transactionService.getTransactionById(transactionId, CALLER);
 
         assertEquals(transactionId, result.id());
     }
@@ -168,7 +170,7 @@ class TransactionServiceTest {
     void getTransactionByIdNotFound() {
         when(transactionRepository.findByIdAndRecordStatus(transactionId, true)).thenReturn(Optional.empty());
 
-        assertThrows(TransactionNotFoundException.class, () -> transactionService.getTransactionById(transactionId));
+        assertThrows(TransactionNotFoundException.class, () -> transactionService.getTransactionById(transactionId, CALLER));
     }
 
     @Test
@@ -200,7 +202,7 @@ class TransactionServiceTest {
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
         transactionService.updateTransaction(transactionId,
-                new TransactionRequestDTO(userId, "expense", new BigDecimal("55.50"), "Mercado"));
+                new TransactionRequestDTO(userId, "expense", new BigDecimal("55.50"), "Mercado"), CALLER);
 
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(captor.capture());
@@ -216,7 +218,7 @@ class TransactionServiceTest {
         when(transactionRepository.findByIdAndRecordStatus(transactionId, true)).thenReturn(Optional.empty());
 
         assertThrows(TransactionNotFoundException.class, () -> transactionService.updateTransaction(transactionId,
-                new TransactionRequestDTO(userId, "INCOME", new BigDecimal("10.00"), "x")));
+                new TransactionRequestDTO(userId, "INCOME", new BigDecimal("10.00"), "x"), CALLER));
         verify(transactionRepository, never()).save(any());
     }
 
@@ -227,7 +229,7 @@ class TransactionServiceTest {
                 .thenReturn(Optional.of(sampleTransaction()));
 
         assertThrows(InvalidTransactionTypeException.class, () -> transactionService.updateTransaction(transactionId,
-                new TransactionRequestDTO(userId, "TRANSFER", new BigDecimal("10.00"), "x")));
+                new TransactionRequestDTO(userId, "TRANSFER", new BigDecimal("10.00"), "x"), CALLER));
         verify(transactionRepository, never()).save(any());
     }
 
@@ -237,7 +239,7 @@ class TransactionServiceTest {
         when(transactionRepository.findByIdAndRecordStatus(transactionId, true))
                 .thenReturn(Optional.of(sampleTransaction()));
 
-        transactionService.deleteTransaction(transactionId);
+        transactionService.deleteTransaction(transactionId, CALLER);
 
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(captor.capture());
@@ -249,7 +251,7 @@ class TransactionServiceTest {
     void deleteTransactionNotFound() {
         when(transactionRepository.findByIdAndRecordStatus(transactionId, true)).thenReturn(Optional.empty());
 
-        assertThrows(TransactionNotFoundException.class, () -> transactionService.deleteTransaction(transactionId));
+        assertThrows(TransactionNotFoundException.class, () -> transactionService.deleteTransaction(transactionId, CALLER));
         verify(transactionRepository, never()).save(any());
     }
 
@@ -259,5 +261,61 @@ class TransactionServiceTest {
         transactionService.deleteByUserId(userId);
 
         verify(transactionRepository).deleteTransactionsByUserId(eq(userId), any(LocalDateTime.class));
+    }
+
+    // --- autorização por dono ---
+
+    private final Caller OTHER = new Caller(UUID.randomUUID(), false);
+    private final Caller ADMIN = new Caller(UUID.randomUUID(), true);
+
+    @Test
+    @DisplayName("deleteTransaction de outro dono -> AccessDeniedException, sem save")
+    void deleteTransactionNotOwner() {
+        when(transactionRepository.findByIdAndRecordStatus(transactionId, true))
+                .thenReturn(Optional.of(sampleTransaction()));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> transactionService.deleteTransaction(transactionId, OTHER));
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("ADMIN deleta transação de qualquer usuário")
+    void deleteTransactionAsAdmin() {
+        when(transactionRepository.findByIdAndRecordStatus(transactionId, true))
+                .thenReturn(Optional.of(sampleTransaction()));
+
+        transactionService.deleteTransaction(transactionId, ADMIN);
+
+        verify(transactionRepository).save(any(Transaction.class));
+    }
+
+    @Test
+    @DisplayName("getTransactionById de outro dono -> AccessDeniedException")
+    void getTransactionByIdNotOwner() {
+        when(transactionRepository.findByIdAndRecordStatus(transactionId, true))
+                .thenReturn(Optional.of(sampleTransaction()));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> transactionService.getTransactionById(transactionId, OTHER));
+    }
+
+    @Test
+    @DisplayName("getTransactionsByUser de outro usuário -> AccessDeniedException")
+    void getTransactionsByUserNotOwner() {
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> transactionService.getTransactionsByUser(userId, null, null, 0, 10, OTHER));
+    }
+
+    @Test
+    @DisplayName("updateTransaction de outro dono -> AccessDeniedException, sem save")
+    void updateTransactionNotOwner() {
+        when(transactionRepository.findByIdAndRecordStatus(transactionId, true))
+                .thenReturn(Optional.of(sampleTransaction()));
+
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> transactionService.updateTransaction(transactionId,
+                        new TransactionRequestDTO(userId, "INCOME", new BigDecimal("1.00"), "x"), OTHER));
+        verify(transactionRepository, never()).save(any());
     }
 }

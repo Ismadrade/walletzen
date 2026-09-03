@@ -114,7 +114,7 @@ local/default).
 | `config-server`      | 8888  | —            | Maven  | Spring Cloud Config Server. Backend `git` (default, repo privado `walletzen-repository`, exige `GIT_USERNAME`/`GIT_PASSWORD`) ou `native` (`config-repo/`, offline, `SPRING_PROFILES_ACTIVE=native`). Consumido por `wz-user`, `wz-financial` e `wz-api-gateway`. |
 | `keycloak`           | 8080  | —            | —      | Identity Provider (OAuth2/OIDC). Realm `walletzen` importado no boot. Ver [Segurança](#segurança). |
 | `wz-api-gateway`     | 8765  | —            | Maven  | Spring Cloud Gateway + resource server: barra requisição sem token (`401`) e repassa o `Authorization`. Roteia `/users/**` → `lb://wz-user` e `/financial/**` → `lb://wz-financial`. |
-| `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários (resource server; `DELETE` exige `ADMIN`). Publica evento `UserDeleted` no Kafka ao excluir. Arquitetura hexagonal. |
+| `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários (resource server; `DELETE` exige `ADMIN`). Provisiona o login no Keycloak (`POST` cria, `PUT` sincroniza, `DELETE` desabilita). Publica `UserDeleted` no Kafka. Arquitetura hexagonal. |
 | `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações (resource server; `DELETE` exige `ADMIN`). Consome `UserDeleted` e desativa as transações do usuário. |
 
 ---
@@ -169,13 +169,29 @@ aplica `V1` e sobe o schema.
 Provider. Realm `walletzen` importado de `keycloak/realm-walletzen.json` no boot.
 
 - **Roles de realm:** `USER`, `ADMIN`.
-- **Client:** `walletzen-app` (público, com *direct access grants* para pegar token via `curl`).
+- **Clients:** `walletzen-app` (público, *direct access grants* para pegar token via `curl`) ·
+  `wz-user-service` (confidencial, *service account* com `manage-users` — o `wz-user` usa
+  para provisionar o login).
 - **Usuários seed:** `alice` / `alice` (role `USER`) · `admin` / `admin` (roles `USER` + `ADMIN`).
 - Console admin: `http://localhost:8080` (login `admin` / `admin` — é o admin do *master*).
 
 Os três serviços expostos são **resource servers OAuth2**: validam o JWT contra o JWKS do
 Keycloak. O `wz-api-gateway` barra na borda (sem token → `401`) e repassa o `Authorization`
 para o downstream; `wz-user` e `wz-financial` revalidam e aplicam as regras de role.
+
+### wz-user centraliza o login
+
+`wz_user` (pessoa) e usuário do Keycloak (login) são o **mesmo cadastro**, gerido pelo `wz-user`:
+
+- `POST /users/` (campo `password` no body, *write-only*) cria a pessoa **e** o usuário no
+  Keycloak (role `USER`), guardando o `keycloak_id` na linha. A pessoa já consegue logar.
+- `PUT /users/{id}` propaga `email`/nome para o Keycloak.
+- `DELETE /users/{id}` faz o *soft delete* da linha **e** desabilita (`enabled=false`) o
+  usuário no Keycloak.
+
+O `wz-user` fala com a Admin API via o client `wz-user-service` (client-credentials).
+Consistência é *best-effort* + log (create é Keycloak-first com compensação); entrega
+transacional forte fica para a Fase 4 (Outbox).
 
 | Rota | Regra |
 | ---- | ----- |
@@ -190,14 +206,20 @@ para o downstream; `wz-user` e `wz-financial` revalidam e aplicam as regras de r
 ### Pegar um token e chamar a API
 
 ```bash
-TOKEN=$(curl -s \
-  -d grant_type=password -d client_id=walletzen-app \
-  -d username=alice -d password=alice \
-  http://localhost:8080/realms/walletzen/protocol/openid-connect/token | jq -r .access_token)
+token() { curl -s -d grant_type=password -d client_id=walletzen-app \
+  -d "username=$1" -d "password=$2" \
+  http://localhost:8080/realms/walletzen/protocol/openid-connect/token | jq -r .access_token; }
 
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8765/users/          # 200
+ADMIN=$(token admin admin)
+
+curl -H "Authorization: Bearer $ADMIN" http://localhost:8765/users/          # 200
 curl http://localhost:8765/users/                                           # 401 (sem token)
-curl -X DELETE -H "Authorization: Bearer $TOKEN" http://localhost:8765/users/<id>   # 403 (alice não é ADMIN)
+
+# cria uma pessoa + login e loga como ela
+curl -X POST -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
+  -d '{"name":"Bruno","cpf":"98765432100","email":"bruno@x.com","birthDate":"1990-01-01","password":"bruno123"}' \
+  http://localhost:8765/users/                                              # 201
+BRUNO=$(token bruno@x.com bruno123)                                         # login funciona
 ```
 
 ---
@@ -213,7 +235,7 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 | ------ | -------------- | --------- |
 | GET    | `/`            | Lista usuários paginada. Query params: `page` (0), `size` (10), `sort` (`name`), `direction` (`ASC`). Retorna `PageInfo<UserResponse>`. |
 | GET    | `/{userId}`    | Busca usuário por `UUID`. |
-| POST   | `/`            | Cria usuário. Body `UserRequest`. `201 Created`. Valida e-mail e CPF únicos. |
+| POST   | `/`            | Cria usuário **e o login no Keycloak**. Body `UserRequest` — inclui `password` (write-only, obrigatório). `201 Created`. Valida e-mail e CPF únicos; `password` em branco → `400`. |
 | PUT    | `/{userId}`    | Edita `name`, `email` e `birthDate`. |
 | DELETE | `/{userId}`    | *Soft delete* + publica evento Kafka. |
 
@@ -245,6 +267,7 @@ Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
 | `cpf`         | String          | obrigatório, único |
 | `email`       | String          | obrigatório, único |
 | `birthDate`   | LocalDate       | `yyyy-MM-dd` |
+| `keycloakId`  | String          | id do usuário no Keycloak (provisionado no `POST`) |
 | `createdAt` / `updatedAt` | LocalDateTime | automáticos |
 | `recordStatus`| boolean         | `true` = ativo (soft delete) |
 
@@ -324,6 +347,9 @@ curl http://localhost:8888/wz-user/default
 | `KEYCLOAK_ISSUER_URI` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8080/realms/walletzen` | Claim `iss` esperado no JWT |
 | `KEYCLOAK_JWKS_URI` | `wz-user`, `wz-financial`, `wz-api-gateway` | `http://localhost:8080/.../certs` | JWKS do Keycloak (no compose: `http://keycloak:8080/...`) |
 | `KC_ADMIN` / `KC_ADMIN_PASSWORD` | `keycloak` | `admin` / `admin` | Admin do *master* (console) |
+| `KEYCLOAK_ADMIN_BASE_URL` | `wz-user` | `http://localhost:8080` | Base da Admin API do Keycloak (no compose: `http://keycloak:8080`) |
+| `KEYCLOAK_TOKEN_URI` | `wz-user` | `http://localhost:8080/realms/walletzen/.../token` | Token endpoint p/ o client-credentials do `wz-user-service` |
+| `WZ_USER_KC_SECRET` | `wz-user` | `wz-user-service-secret` | Secret do client `wz-user-service` |
 | `DB_HOST`      | `wz-user`, `wz-financial` | `localhost` | Host do PostgreSQL |
 | `DB_PORT`      | `wz-user` / `wz-financial` | `5433` / `5434` | Porta do PostgreSQL |
 | `DB_NAME`      | `wz-user` / `wz-financial` | `wz-user-db` / `wz-financial-db` | Nome do banco |
@@ -346,11 +372,11 @@ Backend/
 ├── wz-service-registry/     # Eureka Server         (:8761) — tem Dockerfile
 ├── wz-api-gateway/          # Spring Cloud Gateway  (:8765) — tem Dockerfile
 ├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal) — tem Dockerfile
-│   └── src/main/resources/db/migration/   # V1__init_schema.sql (Flyway)
+│   └── src/main/resources/db/migration/   # V1 (schema) + V2 (keycloak_id) — Flyway
 │   └── src/main/java/br/com/walletzen/
 │       ├── core/            # domínio + casos de uso (ports)
 │       ├── adapter/inbound/web/       # REST controller + DTOs
-│       └── adapter/outbound/          # JPA + Kafka publisher
+│       └── adapter/outbound/          # JPA + Kafka publisher + Keycloak Admin (identity/)
 └── wz-financial/            # microsserviço financeiro    (:8094, camadas) — tem Dockerfile
     └── src/main/resources/db/migration/   # V1__init_schema.sql (Flyway)
     └── src/main/java/br/com/walletzen/

@@ -38,3 +38,12 @@ eureka:
     enabled: false
     register-with-eureka: false
     fetch-registry: false
+
+# Dummy — o adapter do Keycloak é lazy; nos testes o port é mockado.
+keycloak:
+  admin:
+    base-url: http://localhost:9999
+    realm: test
+    token-uri: http://localhost:9999/token
+    client-id: test
+    client-secret: test

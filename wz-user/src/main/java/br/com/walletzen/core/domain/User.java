@@ -14,6 +14,7 @@ public class User implements Serializable {
     private String cpf;
     private String email;
     private LocalDate birthDate;
+    private String keycloakId;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private boolean recordStatus;
@@ -70,6 +71,14 @@ public class User implements Serializable {
 
     public void setBirthDate(LocalDate birthDate) {
         this.birthDate = birthDate;
+    }
+
+    public String getKeycloakId() {
+        return keycloakId;
+    }
+
+    public void setKeycloakId(String keycloakId) {
+        this.keycloakId = keycloakId;
     }
 
     public LocalDateTime getCreatedAt() {

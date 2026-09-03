@@ -71,7 +71,7 @@ public class UserController {
 
     @PostMapping
     public ResponseEntity<Void> createUser(@RequestBody UserRequest userRequest) {
-        createUserUseCase.createUser(userWebMapper.toDomain(userRequest));
+        createUserUseCase.createUser(userWebMapper.toDomain(userRequest), userRequest.password());
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
 

@@ -171,6 +171,9 @@ services:
       - EUREKA_PORT=8761
       - CONFIG_SERVER_URL=http://config-server:8888
       - KEYCLOAK_JWKS_URI=http://keycloak:8080/realms/walletzen/protocol/openid-connect/certs
+      - KEYCLOAK_ADMIN_BASE_URL=http://keycloak:8080
+      - KEYCLOAK_TOKEN_URI=http://keycloak:8080/realms/walletzen/protocol/openid-connect/token
+      - WZ_USER_KC_SECRET=wz-user-service-secret
       - DB_HOST=wz-user-db
       - DB_PORT=5432
       - DB_NAME=wz-user-db

@@ -25,6 +25,16 @@
       "attributes": {
         "post.logout.redirect.uris": "+"
       }
+    },
+    {
+      "clientId": "wz-user-service",
+      "name": "wz-user service account (provisiona usuários no Keycloak)",
+      "enabled": true,
+      "publicClient": false,
+      "secret": "wz-user-service-secret",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true
     }
   ],
   "users": [
@@ -44,13 +54,21 @@
       "username": "admin",
       "enabled": true,
       "emailVerified": true,
-      "email": "admin@walletzen.local",
-      "firstName": "Admin",
-      "lastName": "User",
+      "email": "ismael.andrade@walletzen.com.br",
+      "firstName": "Ismael",
+      "lastName": "Andrade",
       "credentials": [
         { "type": "password", "value": "admin", "temporary": false }
       ],
       "realmRoles": [ "USER", "ADMIN" ]
+    },
+    {
+      "username": "service-account-wz-user-service",
+      "enabled": true,
+      "serviceAccountClientId": "wz-user-service",
+      "clientRoles": {
+        "realm-management": [ "manage-users", "view-users", "view-realm" ]
+      }
     }
   ]
 }

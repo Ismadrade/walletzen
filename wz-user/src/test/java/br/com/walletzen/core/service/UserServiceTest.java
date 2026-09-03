@@ -4,6 +4,7 @@ import br.com.walletzen.core.domain.PageInfo;
 import br.com.walletzen.core.domain.PageQuery;
 import br.com.walletzen.core.domain.User;
 import br.com.walletzen.core.exception.UserFieldAlreadyExistsException;
+import br.com.walletzen.core.port.output.IdentityProviderPort;
 import br.com.walletzen.core.port.output.UserDeletedEventPublisherPort;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 import org.junit.jupiter.api.DisplayName;
@@ -31,6 +32,8 @@ public class UserServiceTest {
     @Mock
     UserDeletedEventPublisherPort eventPublisher;
 
+    @Mock
+    IdentityProviderPort identityProvider;
 
     @InjectMocks
     private UserService userService;
@@ -38,21 +41,25 @@ public class UserServiceTest {
     @Captor
     private ArgumentCaptor<User> userCaptor;
 
+    private static User newUser() {
+        User u = new User();
+        u.setId(UUID.randomUUID());
+        u.setName("João");
+        u.setCpf("12345678900");
+        u.setEmail("email@gteste.com");
+        u.setBirthDate(LocalDate.of(1995, 5, 2));
+        return u;
+    }
 
     @Test
     @DisplayName("Should return a user by ID")
     void shouldReturnUserById() {
-
-        // ARRANGE
         UUID userId = UUID.randomUUID();
         User expectedUser = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
-
         when(userPersistencePort.findById(userId)).thenReturn(expectedUser);
 
-        // ACT
         var result = userService.getUserById(userId);
 
-        // ASSERT
         assertEquals(userId, result.getId());
         verify(userPersistencePort).findById(userId);
     }
@@ -60,167 +67,135 @@ public class UserServiceTest {
     @Test
     @DisplayName("Should return all users")
     void shouldReturnAllUser() {
-
-        // ARRANGE
         List<User> users = List.of(
                 new User(UUID.randomUUID(), "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true),
                 new User(UUID.randomUUID(), "Maria", "98765432100", "email2@gteste.com", LocalDate.of(1997, 10, 25), true)
         );
-        PageInfo<User> usersPageInfo = new PageInfo<>(users, 0,2, 2, 1, true);
-        when(userPersistencePort.findAll(any())).thenReturn(usersPageInfo);
+        when(userPersistencePort.findAll(any())).thenReturn(new PageInfo<>(users, 0, 2, 2, 1, true));
 
-        // ACT
         var result = userService.getAllUsers(new PageQuery(0, 2, "name", "ASC"));
 
-        // ASSERT
-        assertEquals(result.getContent().size(), 2);
+        assertEquals(2, result.getContent().size());
         verify(userPersistencePort).findAll(any());
     }
 
     @Test
-    @DisplayName("Should create a user")
-    void shouldCreateUser(){
+    @DisplayName("Create provisiona o login no Keycloak e guarda o keycloak_id")
+    void shouldCreateUserAndProvisionKeycloak() {
+        User user = newUser();
+        when(identityProvider.createUser("email@gteste.com", "João", "", "s3nha")).thenReturn("kc-123");
 
-        //ARRANGE
-        User userToBeSaved = new User();
-        userToBeSaved.setId(UUID.randomUUID());
-        userToBeSaved.setName("João");
-        userToBeSaved.setCpf("12345678900");
-        userToBeSaved.setEmail("email@gteste.com");
-        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2));
+        userService.createUser(user, "s3nha");
 
-        // ACT
-        userService.createUser(userToBeSaved);
+        verify(identityProvider).createUser("email@gteste.com", "João", "", "s3nha");
+        verify(userPersistencePort).save(userCaptor.capture());
+        assertEquals("kc-123", userCaptor.getValue().getKeycloakId());
+    }
 
-        // ASSERT
-        verify(userPersistencePort).save(userToBeSaved);
+    @Test
+    @DisplayName("Create com senha em branco -> IllegalArgumentException, nada é criado")
+    void shouldRejectBlankPassword() {
+        User user = newUser();
 
+        assertThrows(IllegalArgumentException.class, () -> userService.createUser(user, "   "));
+
+        verify(identityProvider, never()).createUser(any(), any(), any(), any());
+        verify(userPersistencePort, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Se a gravação falha depois do Keycloak, compensa deletando o usuário lá")
+    void shouldCompensateWhenSaveFails() {
+        User user = newUser();
+        when(identityProvider.createUser(any(), any(), any(), any())).thenReturn("kc-999");
+        doThrow(new RuntimeException("db down")).when(userPersistencePort).save(any());
+
+        assertThrows(RuntimeException.class, () -> userService.createUser(user, "s3nha"));
+
+        verify(identityProvider).deleteUser("kc-999");
     }
 
     @Test
     @DisplayName("Throw email already exists when try to save a user")
-    void thrownEmailAlreadyExistsWhenTrySaveUser(){
-
-        //ARRANGE
-        User userToBeSaved = new User();
-        userToBeSaved.setId(UUID.randomUUID());
-        userToBeSaved.setName("João");
-        userToBeSaved.setCpf("12345678900");
-        userToBeSaved.setEmail("email@gteste.com");
-        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2));
-
+    void thrownEmailAlreadyExistsWhenTrySaveUser() {
+        User user = newUser();
         when(userPersistencePort.existsByEmail(anyString())).thenReturn(true);
 
-        // ASSERT + ACT
-        UserFieldAlreadyExistsException userFieldAlreadyExistsException = assertThrows(UserFieldAlreadyExistsException.class, () -> {
-            userService.createUser(userToBeSaved);
-        });
+        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.createUser(user, "s3nha"));
 
-        String message = userFieldAlreadyExistsException.getMessage();
-        assertEquals("email is already registered: " + userToBeSaved.getEmail(), message);
+        assertEquals("email is already registered: " + user.getEmail(), ex.getMessage());
+        verify(identityProvider, never()).createUser(any(), any(), any(), any());
         verify(userPersistencePort, never()).save(any());
-
     }
 
     @Test
     @DisplayName("Throw when cpf already exists")
-    void thrownWhenCpfAlreadyExists(){
-
-        //ARRANGE
-        User userToBeSaved = new User();
-        userToBeSaved.setId(UUID.randomUUID());
-        userToBeSaved.setName("João");
-        userToBeSaved.setCpf("12345678900");
-        userToBeSaved.setEmail("email@gteste.com");
-        userToBeSaved.setBirthDate(LocalDate.of(1995, 5, 2));
-
+    void thrownWhenCpfAlreadyExists() {
+        User user = newUser();
         when(userPersistencePort.existsByCpf(anyString())).thenReturn(true);
 
-        // ASSERT + ACT
-        UserFieldAlreadyExistsException userFieldAlreadyExistsException = assertThrows(UserFieldAlreadyExistsException.class, () -> {
-            userService.createUser(userToBeSaved);
-        });
+        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.createUser(user, "s3nha"));
 
-        String message = userFieldAlreadyExistsException.getMessage();
-        assertEquals("CPF is already registered: " + userToBeSaved.getCpf(), message);
+        assertEquals("CPF is already registered: " + user.getCpf(), ex.getMessage());
         verify(userPersistencePort, never()).save(any());
-
     }
 
     @Test
-    @DisplayName("Should edit a user")
-    void shouldEditUser(){
-
-        //ARRANGE
+    @DisplayName("Edit propaga email/nome para o Keycloak quando há keycloak_id")
+    void shouldEditUserAndSyncKeycloak() {
         UUID userId = UUID.randomUUID();
-        User userEdited = new User();
-        userEdited.setId(userId);
-        userEdited.setName("João da Silva");
-        userEdited.setCpf("12345678900");
-        userEdited.setEmail("email_novo@gteste.com");
-        userEdited.setBirthDate(LocalDate.of(1995, 5, 2));
+        User edited = new User();
+        edited.setId(userId);
+        edited.setName("João da Silva");
+        edited.setCpf("12345678900");
+        edited.setEmail("email_novo@gteste.com");
+        edited.setBirthDate(LocalDate.of(1995, 5, 2));
 
-        User userToBeEdited = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2),true);
+        User existing = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
+        existing.setKeycloakId("kc-42");
+        when(userPersistencePort.findById(userId)).thenReturn(existing);
 
-        when(userPersistencePort.findById(userId)).thenReturn(userToBeEdited);
+        userService.editUser(userId, edited);
 
-        // ACT
-        userService.editUser(userId, userEdited);
-
-        // ASSERT
         verify(userPersistencePort).save(userCaptor.capture());
-        User userPersisted = userCaptor.getValue();
-        assertEquals(userEdited.getName(), userPersisted.getName());
-        assertEquals(userEdited.getEmail(), userPersisted.getEmail());
-
+        assertEquals("email_novo@gteste.com", userCaptor.getValue().getEmail());
+        verify(identityProvider).updateUser("kc-42", "email_novo@gteste.com", "João", "da Silva");
     }
 
     @Test
     @DisplayName("Throw email already exists when try to edit a user")
-    void thrownEmailAlreadyExistsWhenTryEditUser(){
-
-        //ARRANGE
+    void thrownEmailAlreadyExistsWhenTryEditUser() {
         UUID userId = UUID.randomUUID();
-        User userEdited = new User();
-        userEdited.setId(userId);
-        userEdited.setName("João da Silva");
-        userEdited.setCpf("12345678900");
-        userEdited.setEmail("email_novo@gteste.com");
-        userEdited.setBirthDate(LocalDate.of(1995, 5, 2));
+        User edited = new User();
+        edited.setId(userId);
+        edited.setName("João da Silva");
+        edited.setCpf("12345678900");
+        edited.setEmail("email_novo@gteste.com");
+        edited.setBirthDate(LocalDate.of(1995, 5, 2));
 
-        User userToBeEdited = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2),true);
-
-        when(userPersistencePort.findById(userId)).thenReturn(userToBeEdited);
+        User existing = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
+        when(userPersistencePort.findById(userId)).thenReturn(existing);
         when(userPersistencePort.existsByEmail(anyString())).thenReturn(true);
 
-        // ASSERT + ACT
-        UserFieldAlreadyExistsException userFieldAlreadyExistsException = assertThrows(UserFieldAlreadyExistsException.class, () -> {
-            userService.editUser(userId, userEdited);
-        });
+        var ex = assertThrows(UserFieldAlreadyExistsException.class, () -> userService.editUser(userId, edited));
 
-        String message = userFieldAlreadyExistsException.getMessage();
-        assertEquals("email is already registered: " + userEdited.getEmail(), message);
+        assertEquals("email is already registered: " + edited.getEmail(), ex.getMessage());
         verify(userPersistencePort, never()).save(any());
     }
 
     @Test
-    @DisplayName("Should delete a user")
-    void shouldDeleteUserAndPublishEvent() throws Exception {
-
-        // ARRANGE
+    @DisplayName("Delete faz soft-delete, publica evento e desabilita no Keycloak")
+    void shouldDeleteUserAndDisableKeycloak() {
         UUID userId = UUID.randomUUID();
-        User userToBeDeleted = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
+        User user = new User(userId, "João", "12345678900", "email@gteste.com", LocalDate.of(1995, 5, 2), true);
+        user.setKeycloakId("kc-7");
+        when(userPersistencePort.findById(userId)).thenReturn(user);
 
-        when(userPersistencePort.findById(userId)).thenReturn(userToBeDeleted);
-
-        // ACT
         userService.deleteUser(userId);
 
-        // ASSERT
         verify(userPersistencePort).save(userCaptor.capture());
-        User userDeleted = userCaptor.getValue();
-        assertFalse(userDeleted.getRecordStatus());
-        verify(userPersistencePort).save(any());
+        assertFalse(userCaptor.getValue().getRecordStatus());
         verify(eventPublisher).publish(any());
+        verify(identityProvider).disableUser("kc-7");
     }
 }

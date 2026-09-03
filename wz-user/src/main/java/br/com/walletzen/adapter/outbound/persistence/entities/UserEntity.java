@@ -35,6 +35,9 @@ public class UserEntity {
     @Column(name = "BIRTH_DATE")
     private LocalDate birthDate;
 
+    @Column(name = "KEYCLOAK_ID")
+    private String keycloakId;
+
     @Column(name = "CREATED_AT", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

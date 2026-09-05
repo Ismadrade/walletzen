@@ -180,17 +180,59 @@ class TransactionServiceTest {
         Transaction mapped = Transaction.builder()
                 .transactionType(TransactionType.INCOME)
                 .amount(new BigDecimal("100.00"))
-                .userId(userId)
                 .build();
         when(transactionMapper.toEntity(dto)).thenReturn(mapped);
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
-        transactionService.createTransaction(dto);
+        transactionService.createTransaction(dto, CALLER);
 
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(captor.capture());
         assertTrue(captor.getValue().isRecordStatus());
+    }
+
+    @Test
+    @DisplayName("createTransaction para um USER ignora o userId do body e usa o do token")
+    void createTransactionUserOwnerComesFromToken() {
+        UUID someoneElseId = UUID.randomUUID();
+        TransactionRequestDTO dto = new TransactionRequestDTO(someoneElseId, "INCOME", new BigDecimal("100.00"), "x");
+        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().transactionType(TransactionType.INCOME).build());
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
+
+        transactionService.createTransaction(dto, CALLER); // CALLER.wzUserId() == userId
+
+        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository).save(captor.capture());
+        assertEquals(userId, captor.getValue().getUserId());
+    }
+
+    @Test
+    @DisplayName("createTransaction para um ADMIN com userId no body cria em nome daquele usuário")
+    void createTransactionAdminCanTargetAnotherUser() {
+        UUID target = UUID.randomUUID();
+        TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("100.00"), "x");
+        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().transactionType(TransactionType.INCOME).build());
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
+
+        transactionService.createTransaction(dto, ADMIN); // ADMIN.wzUserId() != target
+
+        ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
+        verify(transactionRepository).save(captor.capture());
+        assertEquals(target, captor.getValue().getUserId());
+    }
+
+    @Test
+    @DisplayName("createTransaction sem como determinar o dono -> IllegalArgumentException")
+    void createTransactionWithoutOwner() {
+        Caller callerSemWzUserId = new Caller(null, false); // ex.: usuário seed sem vínculo em wz_user
+        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("100.00"), "x");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> transactionService.createTransaction(dto, callerSemWzUserId));
+        verify(transactionRepository, never()).save(any());
     }
 
     @Test

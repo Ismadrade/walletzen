@@ -102,9 +102,21 @@ public class TransactionService {
         return transactionMapper.toResponse(transaction);
     }
 
+    /**
+     * O dono do lançamento é sempre quem está autenticado — o {@code userId} do body é
+     * ignorado para um {@code USER} comum. Só um {@code ADMIN} pode usar o {@code userId}
+     * do body para lançar em nome de outra pessoa; sem ele, cai no próprio {@code ADMIN}
+     * (que normalmente não tem lançamentos, então precisa informar).
+     */
     @Transactional
-    public TransactionResponseDTO createTransaction(TransactionRequestDTO dto) {
+    public TransactionResponseDTO createTransaction(TransactionRequestDTO dto, Caller caller) {
+        UUID ownerId = (caller.admin() && dto.userId() != null) ? dto.userId() : caller.wzUserId();
+        if (ownerId == null) {
+            throw new IllegalArgumentException("cannot determine the transaction owner");
+        }
+
         Transaction transaction = transactionMapper.toEntity(dto);
+        transaction.setUserId(ownerId);
         transaction.setRecordStatus(true);
         return transactionMapper.toResponse(transactionRepository.save(transaction));
     }

@@ -39,8 +39,10 @@ public class TransactionController {
     }
 
     @PostMapping
-    public ResponseEntity<TransactionResponseDTO> create(@Valid @RequestBody TransactionRequestDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(transactionService.createTransaction(dto));
+    public ResponseEntity<TransactionResponseDTO> create(@Valid @RequestBody TransactionRequestDTO dto,
+                                                        JwtAuthenticationToken auth) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(transactionService.createTransaction(dto, Caller.from(auth)));
     }
 
     @PutMapping("/{id}")

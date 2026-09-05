@@ -1,6 +1,7 @@
 package br.com.walletzen.controller;
 
 import br.com.walletzen.config.SecurityConfig;
+import br.com.walletzen.dto.response.TransactionResponseDTO;
 import br.com.walletzen.security.Caller;
 import br.com.walletzen.service.TransactionService;
 import org.junit.jupiter.api.DisplayName;
@@ -8,19 +9,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(TransactionController.class)
@@ -66,5 +71,22 @@ class TransactionControllerSecurityTest {
 
         verify(transactionService).deleteTransaction(eq(id),
                 argThat(c -> c.admin() && wzUserId.equals(c.wzUserId())));
+    }
+
+    @Test
+    @DisplayName("POST também repassa o Caller — o dono não vem só do body")
+    void createForwardsCallerIdentity() throws Exception {
+        UUID wzUserId = UUID.randomUUID();
+        when(transactionService.createTransaction(any(), any(Caller.class)))
+                .thenReturn(new TransactionResponseDTO(UUID.randomUUID(), wzUserId, "INCOME", BigDecimal.TEN, "x", true));
+
+        mockMvc.perform(post("/transactions")
+                        .with(jwt().jwt(j -> j.claim("preferred_username", wzUserId.toString())))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"transactionType\":\"INCOME\",\"amount\":10.00,\"description\":\"x\"}"))
+                .andExpect(status().isCreated());
+
+        verify(transactionService).createTransaction(any(),
+                argThat(c -> !c.admin() && wzUserId.equals(c.wzUserId())));
     }
 }

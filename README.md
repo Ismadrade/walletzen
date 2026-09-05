@@ -200,13 +200,14 @@ transacional forte fica para a Fase 4 (Outbox).
 | ---- | ----- |
 | `GET`/`POST`/`PUT` em `/users/**` | autenticado (qualquer role) |
 | `DELETE /users/{id}` | role `ADMIN` (senão `403`) |
-| `POST /financial/transactions` | autenticado |
+| `POST /financial/transactions` | autenticado — dono = quem chamou; `ADMIN` pode informar `userId` no body p/ lançar em nome de outro |
 | `GET`/`PUT`/`DELETE` em `/financial/transactions/**` | **dono** da transação **ou** `ADMIN` (senão `403`) |
 | `/actuator/health/**`, `/actuator/info` | aberto (healthchecks) |
 
 > **Dono:** o `wz-financial` identifica o dono pelo claim `preferred_username` do token
 > (que é o `wz_user.id`, já que o `username` do Keycloak é esse id). Usuários seed do realm
-> (`alice`, `admin`) não têm um `wz_user.id` → não são donos de nada; `admin` passa pela role.
+> (`alice`, `admin`) não têm um `wz_user.id` → não são donos de nada; `admin` passa pela role,
+> mas para **criar** um lançamento precisa informar `userId` explicitamente.
 
 > **Issuer x Docker:** `issuer-uri` = `http://localhost:8080/realms/walletzen` (casa com o
 > `iss` de tokens pegos pelo host); `jwk-set-uri` aponta para `http://keycloak:8080/...`
@@ -254,7 +255,7 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 | ------ | ------------------ | --------- |
 | GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Ordena por `createdAt` desc. **Dono ou ADMIN** (`403` para outro usuário). |
 | GET    | `/{id}`            | Busca transação ativa por `UUID`. **Dono ou ADMIN**. |
-| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (validado: `userId`/`amount` obrigatórios, `amount` positivo, `transactionType` não vazio). `201 Created`. |
+| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (`amount`/`transactionType` obrigatórios, `amount` positivo). `201 Created`. **O dono é sempre quem está autenticado** — `userId` no body é ignorado para um `USER` comum; só um `ADMIN` pode usá-lo para lançar em nome de outra pessoa. Sem `userId` resolvível → `400`. |
 | PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. **Dono ou ADMIN**. |
 | DELETE | `/{id}`            | *Soft delete* (`204 No Content`). **Dono ou ADMIN** — um `USER` pode apagar as próprias transações, não as de outros. |
 

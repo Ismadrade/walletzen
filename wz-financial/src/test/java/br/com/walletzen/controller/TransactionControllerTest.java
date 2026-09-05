@@ -139,7 +139,7 @@ class TransactionControllerTest {
     @Test
     @DisplayName("POST /transactions creates the transaction and returns 201")
     void create() throws Exception {
-        when(transactionService.createTransaction(any())).thenReturn(response());
+        when(transactionService.createTransaction(any(), any(Caller.class))).thenReturn(response());
 
         mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -158,13 +158,13 @@ class TransactionControllerTest {
         mockMvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest());
 
-        verify(transactionService, never()).createTransaction(any());
+        verify(transactionService, never()).createTransaction(any(), any());
     }
 
     @Test
     @DisplayName("POST /transactions returns 400 for an unknown transaction type")
     void createInvalidType() throws Exception {
-        when(transactionService.createTransaction(any())).thenThrow(new InvalidTransactionTypeException("TRANSFER"));
+        when(transactionService.createTransaction(any(), any(Caller.class))).thenThrow(new InvalidTransactionTypeException("TRANSFER"));
 
         mockMvc.perform(post("/transactions")
                         .contentType(MediaType.APPLICATION_JSON)

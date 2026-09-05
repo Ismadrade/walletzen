@@ -7,12 +7,14 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-
+/**
+ * {@code userId} é opcional e só tem efeito para quem chama com role {@code ADMIN}
+ * (lançar em nome de outro usuário). Para um {@code USER} comum, o dono do lançamento
+ * é sempre quem está autenticado — ver {@link br.com.walletzen.service.TransactionService#createTransaction}.
+ */
 public record TransactionRequestDTO(
-        @NotNull UUID userId,
+        UUID userId,
         @NotBlank String transactionType,
         @NotNull @Positive BigDecimal amount,
         String description) {
-
-
 }

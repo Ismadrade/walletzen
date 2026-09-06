@@ -58,6 +58,7 @@ flowchart TD
         FIN -. config .-> CFG
         USER -- publica --> K
         K -- consome --> FIN
+        FIN -- "valida dono (HTTP + Resilience4j)" --> USER
         USER --> UDB
         FIN --> FDB
     end
@@ -78,7 +79,8 @@ Padrões de projeto por serviço:
 ## Stack
 
 Java 17 · Spring Boot 3.4.x · Spring Cloud 2024.0.x · Spring Cloud Gateway ·
-Netflix Eureka · Spring Cloud Config · Spring Data JPA · PostgreSQL · Apache Kafka
+Netflix Eureka · Spring Cloud Config · Spring Cloud OpenFeign + LoadBalancer ·
+Resilience4j · Spring Data JPA · PostgreSQL · Apache Kafka
 (`spring-kafka`) · Lombok · MapStruct.
 
 **Build:** Maven wrapper (`config-server`, `wz-api-gateway`, `wz-service-registry`,
@@ -115,7 +117,7 @@ local/default).
 | `keycloak`           | 8080  | —            | —      | Identity Provider (OAuth2/OIDC). Realm `walletzen` importado no boot. Ver [Segurança](#segurança). |
 | `wz-api-gateway`     | 8765  | —            | Maven  | Spring Cloud Gateway + resource server: barra requisição sem token (`401`) e repassa o `Authorization`. Roteia `/users/**` → `lb://wz-user` e `/financial/**` → `lb://wz-financial`. |
 | `wz-user`            | 8091  | `/users`     | Maven  | CRUD de usuários (resource server; `DELETE` exige `ADMIN`). Provisiona o login no Keycloak (`POST` cria, `PUT` sincroniza, `DELETE` desabilita). Publica `UserDeleted` no Kafka. Arquitetura hexagonal. |
-| `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações (resource server; `DELETE` exige `ADMIN`). Consome `UserDeleted` e desativa as transações do usuário. |
+| `wz-financial`       | 8094  | `/financial` | Gradle | CRUD de transações (resource server; `GET`/`PUT`/`DELETE` restritos a dono ou `ADMIN`). No `POST`, valida o dono chamando `wz-user` via OpenFeign + Resilience4j. Consome `UserDeleted` e desativa as transações do usuário. |
 
 ---
 
@@ -131,6 +133,42 @@ local/default).
 - Serialização das mensagens: JSON como `String` (Jackson), sem schema registry.
 - Infra local: `obsidiandynamics/kafka` + **Redpanda Console** em
   `http://localhost:8081` para inspecionar tópicos.
+
+---
+
+## Comunicação síncrona (HTTP + resiliência)
+
+No `POST /financial/transactions`, antes de gravar, `wz-financial` chama `wz-user`
+para validar o **dono** do lançamento (o `userId` já resolvido do token / body).
+
+```
+wz-financial ──(OpenFeign + spring-cloud-loadbalancer)──▶ Eureka ("wz-user") ──▶ GET /users/{id}
+```
+
+- **Cliente:** `UserClient` (`@FeignClient(name = "wz-user")`), resolvido pelo id no
+  Eureka. O Bearer do chamador é repassado (TokenRelay serviço→serviço) por um
+  `RequestInterceptor`.
+- **`wz-user` faz `GET ... WHERE record_status = true`** → um usuário inexistente
+  **ou** inativo devolve `404`. Logo `2xx` = existe e está ativo.
+- **Resiliência** (Resilience4j, instância `wz-user`), em `UserValidationGateway`:
+
+  | Padrão | Config | Efeito |
+  | ------ | ------ | ------ |
+  | `@Retry` | `max-attempts: 3`, `wait: 200ms`, só `FeignException`/`IOException` | reexecuta erro transitório; **não** reintenta `404` |
+  | `@CircuitBreaker` | janela 10, mín. 5 chamadas, abre em 50% de falha, `wait-open: 10s`, half-open com 3 provas | quando aberto, curto-circuita direto no fallback |
+  | timeout | Feign `connect/read-timeout: 2000ms` | limita cada tentativa |
+  | fallback | **fail-closed** | `wz-user` fora do ar ⇒ `503`, lançamento recusado |
+
+- **Respostas:**
+  - `userId` inexistente/inativo → **422** `{ "message": "user <id> not found or inactive" }`
+  - `wz-user` indisponível / circuito aberto → **503** `{ "message": "user service unavailable, try again later" }`
+- **Estado do circuito:** `GET http://localhost:8094/financial/actuator/circuitbreakers`
+  (e `.../actuator/health` mostra o componente `circuitBreakers`).
+- `PUT`/`DELETE` **não** revalidam — não trocam o dono do lançamento.
+
+Ver o circuito abrir/fechar: `docker compose stop wz-user`, disparar alguns `POST`
+válidos (respondem `503` rápido, sem pendurar) → `circuitbreakers` mostra `OPEN`;
+`docker compose start wz-user` e aguardar ~15 s → `HALF_OPEN` → `CLOSED`.
 
 ---
 
@@ -255,14 +293,15 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 | ------ | ------------------ | --------- |
 | GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Ordena por `createdAt` desc. **Dono ou ADMIN** (`403` para outro usuário). |
 | GET    | `/{id}`            | Busca transação ativa por `UUID`. **Dono ou ADMIN**. |
-| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (`amount`/`transactionType` obrigatórios, `amount` positivo). `201 Created`. **O dono é sempre quem está autenticado** — `userId` no body é ignorado para um `USER` comum; só um `ADMIN` pode usá-lo para lançar em nome de outra pessoa. Sem `userId` resolvível → `400`. |
+| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (`amount`/`transactionType` obrigatórios, `amount` positivo). `201 Created`. **O dono é sempre quem está autenticado** — `userId` no body é ignorado para um `USER` comum; só um `ADMIN` pode usá-lo para lançar em nome de outra pessoa. Sem `userId` resolvível → `400`. O dono é validado em `wz-user` (ver *Comunicação síncrona*): inexistente/inativo → `422`; `wz-user` fora do ar → `503`. |
 | PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. **Dono ou ADMIN**. |
 | DELETE | `/{id}`            | *Soft delete* (`204 No Content`). **Dono ou ADMIN** — um `USER` pode apagar as próprias transações, não as de outros. |
 
 Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
 (`ExceptionResponse` / `UserNotFoundException`, `UserFieldAlreadyExistsException`,
 `TransactionNotFoundException`, `InvalidTransactionTypeException`,
-`InvalidFilterException`).
+`InvalidFilterException`, `UnknownUserException` → `422`,
+`UserServiceUnavailableException` → `503`).
 
 ---
 

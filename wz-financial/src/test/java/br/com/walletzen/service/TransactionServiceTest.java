@@ -1,5 +1,6 @@
 package br.com.walletzen.service;
 
+import br.com.walletzen.client.UserValidationGateway;
 import br.com.walletzen.domain.Transaction;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
@@ -8,6 +9,8 @@ import br.com.walletzen.enums.TransactionType;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
+import br.com.walletzen.exception.UnknownUserException;
+import br.com.walletzen.exception.UserServiceUnavailableException;
 import br.com.walletzen.mapper.TransactionMapper;
 import br.com.walletzen.security.Caller;
 import br.com.walletzen.repository.TransactionRepository;
@@ -35,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -48,6 +52,9 @@ class TransactionServiceTest {
 
     @Mock
     private TransactionMapper transactionMapper;
+
+    @Mock
+    private UserValidationGateway userValidationGateway;
 
     @InjectMocks
     private TransactionService transactionService;
@@ -232,6 +239,43 @@ class TransactionServiceTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.createTransaction(dto, callerSemWzUserId));
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("createTransaction valida o dono resolvido em wz-user antes de gravar")
+    void createTransactionValidatesOwner() {
+        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x");
+        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().transactionType(TransactionType.INCOME).build());
+        when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
+
+        transactionService.createTransaction(dto, CALLER);
+
+        verify(userValidationGateway).assertActiveUser(userId);
+        verify(transactionRepository).save(any(Transaction.class));
+    }
+
+    @Test
+    @DisplayName("createTransaction rejeita usuário inexistente/inativo sem gravar (422)")
+    void createTransactionRejectsUnknownUser() {
+        UUID target = UUID.randomUUID();
+        TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("10.00"), "x");
+        doThrow(new UnknownUserException(target)).when(userValidationGateway).assertActiveUser(target);
+
+        assertThrows(UnknownUserException.class, () -> transactionService.createTransaction(dto, ADMIN));
+        verify(transactionRepository, never()).save(any());
+        verifyNoInteractions(transactionMapper);
+    }
+
+    @Test
+    @DisplayName("createTransaction propaga indisponibilidade de wz-user (503), sem gravar")
+    void createTransactionPropagatesServiceUnavailable() {
+        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x");
+        doThrow(new UserServiceUnavailableException(userId, new RuntimeException("boom")))
+                .when(userValidationGateway).assertActiveUser(userId);
+
+        assertThrows(UserServiceUnavailableException.class, () -> transactionService.createTransaction(dto, CALLER));
         verify(transactionRepository, never()).save(any());
     }
 

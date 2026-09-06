@@ -39,6 +39,11 @@ dependencies {
 	implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client:4.2.1'
 	implementation("org.springframework.kafka:spring-kafka:3.3.5")
 	implementation 'org.springframework.cloud:spring-cloud-starter-config'
+	// Chamada síncrona wz-financial -> wz-user (resolvida pelo Eureka) com resiliência.
+	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+	implementation 'org.springframework.cloud:spring-cloud-starter-loadbalancer'
+	implementation 'io.github.resilience4j:resilience4j-spring-boot3'
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'

@@ -3,6 +3,8 @@ package br.com.walletzen.handler;
 import br.com.walletzen.dto.response.ExceptionResponse;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
+import br.com.walletzen.exception.UnknownUserException;
+import br.com.walletzen.exception.UserServiceUnavailableException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -51,5 +53,29 @@ class GlobalExceptionHandlerTest {
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().message().contains("PIX"));
+    }
+
+    @Test
+    @DisplayName("UnknownUserException is mapped to 422")
+    void unknownUser() {
+        UUID id = UUID.randomUUID();
+
+        ResponseEntity<ExceptionResponse> response =
+                handler.handleUnknownUser(new UnknownUserException(id));
+
+        assertEquals(HttpStatus.UNPROCESSABLE_ENTITY, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertTrue(response.getBody().message().contains(id.toString()));
+    }
+
+    @Test
+    @DisplayName("UserServiceUnavailableException is mapped to 503 with a generic message")
+    void userServiceUnavailable() {
+        ResponseEntity<ExceptionResponse> response = handler.handleUserServiceUnavailable(
+                new UserServiceUnavailableException(UUID.randomUUID(), new RuntimeException("connection refused to wz-user")));
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("user service unavailable, try again later", response.getBody().message());
     }
 }

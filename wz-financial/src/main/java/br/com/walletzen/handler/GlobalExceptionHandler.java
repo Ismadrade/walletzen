@@ -4,6 +4,8 @@ import br.com.walletzen.dto.response.ExceptionResponse;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
+import br.com.walletzen.exception.UnknownUserException;
+import br.com.walletzen.exception.UserServiceUnavailableException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +41,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidFilterException.class)
     public ResponseEntity<ExceptionResponse> handleInvalidFilter(InvalidFilterException ex) {
         return new ResponseEntity<>(new ExceptionResponse(LocalDateTime.now(), ex.getMessage()), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(UnknownUserException.class)
+    public ResponseEntity<ExceptionResponse> handleUnknownUser(UnknownUserException ex) {
+        return new ResponseEntity<>(new ExceptionResponse(LocalDateTime.now(), ex.getMessage()), HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @ExceptionHandler(UserServiceUnavailableException.class)
+    public ResponseEntity<ExceptionResponse> handleUserServiceUnavailable(UserServiceUnavailableException ex) {
+        log.warn("wz-user indisponível ao validar o lançamento", ex);
+        return new ResponseEntity<>(new ExceptionResponse(LocalDateTime.now(),
+                "user service unavailable, try again later"), HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

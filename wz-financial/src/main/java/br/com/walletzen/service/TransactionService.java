@@ -1,5 +1,6 @@
 package br.com.walletzen.service;
 
+import br.com.walletzen.client.UserValidationGateway;
 import br.com.walletzen.domain.Transaction;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
@@ -35,6 +36,7 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final TransactionMapper transactionMapper;
+    private final UserValidationGateway userValidationGateway;
 
     /**
      * Lista as transações ativas do usuário, paginadas e opcionalmente filtradas
@@ -107,6 +109,9 @@ public class TransactionService {
      * ignorado para um {@code USER} comum. Só um {@code ADMIN} pode usar o {@code userId}
      * do body para lançar em nome de outra pessoa; sem ele, cai no próprio {@code ADMIN}
      * (que normalmente não tem lançamentos, então precisa informar).
+     *
+     * <p>Antes de gravar, o dono resolvido é validado sincronamente em {@code wz-user}
+     * ({@link UserValidationGateway}): inexistente/inativo ⇒ 422; {@code wz-user} fora do ar ⇒ 503.
      */
     @Transactional
     public TransactionResponseDTO createTransaction(TransactionRequestDTO dto, Caller caller) {
@@ -114,6 +119,8 @@ public class TransactionService {
         if (ownerId == null) {
             throw new IllegalArgumentException("cannot determine the transaction owner");
         }
+
+        userValidationGateway.assertActiveUser(ownerId);
 
         Transaction transaction = transactionMapper.toEntity(dto);
         transaction.setUserId(ownerId);

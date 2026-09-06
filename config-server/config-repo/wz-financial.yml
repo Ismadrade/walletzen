@@ -28,3 +28,45 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     topic:
       wz-user-deleted: wz-user-deleted
+  cloud:
+    openfeign:
+      client:
+        config:
+          wz-user:
+            connect-timeout: 2000
+            read-timeout: 2000
+
+# Resiliência da validação síncrona do dono do lançamento em wz-user (POST /financial/transactions).
+resilience4j:
+  circuitbreaker:
+    instances:
+      wz-user:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 3
+        automatic-transition-from-open-to-half-open-enabled: true
+        register-health-indicator: true
+        ignore-exceptions:
+          - br.com.walletzen.exception.UnknownUserException
+  retry:
+    instances:
+      wz-user:
+        max-attempts: 3
+        wait-duration: 200ms
+        retry-exceptions:
+          - feign.FeignException
+          - java.io.IOException
+        ignore-exceptions:
+          - br.com.walletzen.exception.UnknownUserException
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,refresh,circuitbreakers,retries
+  health:
+    circuitbreakers:
+      enabled: true

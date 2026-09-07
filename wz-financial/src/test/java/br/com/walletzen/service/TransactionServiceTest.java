@@ -12,6 +12,7 @@ import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.exception.UnknownUserException;
 import br.com.walletzen.exception.UserServiceUnavailableException;
 import br.com.walletzen.mapper.TransactionMapper;
+import br.com.walletzen.outbox.OutboxRecorder;
 import br.com.walletzen.security.Caller;
 import br.com.walletzen.repository.TransactionRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -55,6 +56,9 @@ class TransactionServiceTest {
 
     @Mock
     private UserValidationGateway userValidationGateway;
+
+    @Mock
+    private OutboxRecorder outboxRecorder;
 
     @InjectMocks
     private TransactionService transactionService;
@@ -185,6 +189,7 @@ class TransactionServiceTest {
     void createTransaction() {
         TransactionRequestDTO dto = new TransactionRequestDTO(userId, "INCOME", new BigDecimal("100.00"), "Salário");
         Transaction mapped = Transaction.builder()
+                .id(transactionId)
                 .transactionType(TransactionType.INCOME)
                 .amount(new BigDecimal("100.00"))
                 .build();
@@ -197,6 +202,8 @@ class TransactionServiceTest {
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(captor.capture());
         assertTrue(captor.getValue().isRecordStatus());
+        verify(outboxRecorder).record(eq("Transaction"), eq(transactionId.toString()),
+                eq("TransactionCreated"), any(), any());
     }
 
     @Test
@@ -204,7 +211,7 @@ class TransactionServiceTest {
     void createTransactionUserOwnerComesFromToken() {
         UUID someoneElseId = UUID.randomUUID();
         TransactionRequestDTO dto = new TransactionRequestDTO(someoneElseId, "INCOME", new BigDecimal("100.00"), "x");
-        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().transactionType(TransactionType.INCOME).build());
+        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().id(transactionId).transactionType(TransactionType.INCOME).build());
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
@@ -220,7 +227,7 @@ class TransactionServiceTest {
     void createTransactionAdminCanTargetAnotherUser() {
         UUID target = UUID.randomUUID();
         TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("100.00"), "x");
-        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().transactionType(TransactionType.INCOME).build());
+        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().id(transactionId).transactionType(TransactionType.INCOME).build());
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
@@ -246,7 +253,7 @@ class TransactionServiceTest {
     @DisplayName("createTransaction valida o dono resolvido em wz-user antes de gravar")
     void createTransactionValidatesOwner() {
         TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x");
-        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().transactionType(TransactionType.INCOME).build());
+        when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().id(transactionId).transactionType(TransactionType.INCOME).build());
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
@@ -296,6 +303,8 @@ class TransactionServiceTest {
         assertEquals(TransactionType.EXPENSE, saved.getTransactionType());
         assertEquals(new BigDecimal("55.50"), saved.getAmount());
         assertEquals("Mercado", saved.getDescription());
+        verify(outboxRecorder).record(eq("Transaction"), eq(transactionId.toString()),
+                eq("TransactionUpdated"), any(), any());
     }
 
     @Test
@@ -330,6 +339,8 @@ class TransactionServiceTest {
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(captor.capture());
         assertFalse(captor.getValue().isRecordStatus());
+        verify(outboxRecorder).record(eq("Transaction"), eq(transactionId.toString()),
+                eq("TransactionDeleted"), any(), any());
     }
 
     @Test

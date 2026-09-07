@@ -15,6 +15,7 @@ import br.com.walletzen.core.port.output.UserDeletedEventPublisherPort;
 import br.com.walletzen.core.port.output.UserPersistencePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -132,7 +133,13 @@ public class UserService implements GetUserUseCase, CreateUserUseCase, EditUserU
         }
     }
 
+    /**
+     * {@code @Transactional} (spring-tx) para o soft-delete e o registro do evento na
+     * Outbox commitarem juntos — é o que fecha a divergência do dual-write. A chamada
+     * ao Keycloak fica dentro da transação, mas é best-effort (try/catch) e não a aborta.
+     */
     @Override
+    @Transactional
     public void deleteUser(UUID userId) throws UserNotFoundException {
         User user = userRepository.findById(userId);
         user.setRecordStatus(false);

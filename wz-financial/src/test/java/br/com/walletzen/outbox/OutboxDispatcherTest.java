@@ -54,7 +54,7 @@ class OutboxDispatcherTest {
     @DisplayName("send OK marca published_at e zera o erro")
     void publishesSuccessfully() {
         OutboxEvent event = unpublished();
-        when(repository.findById(1L)).thenReturn(Optional.of(event));
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(event));
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
 
@@ -69,7 +69,7 @@ class OutboxDispatcherTest {
     @DisplayName("send com falha incrementa attempts, grava last_error e não marca published_at")
     void registersFailure() {
         OutboxEvent event = unpublished();
-        when(repository.findById(1L)).thenReturn(Optional.of(event));
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(event));
         when(kafkaTemplate.send(any(ProducerRecord.class)))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("broker down")));
 
@@ -86,7 +86,7 @@ class OutboxDispatcherTest {
     void skipsAlreadyPublished() {
         OutboxEvent event = unpublished();
         event.setPublishedAt(LocalDateTime.now());
-        when(repository.findById(1L)).thenReturn(Optional.of(event));
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(event));
 
         dispatcher.dispatch(1L);
 

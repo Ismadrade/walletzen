@@ -33,7 +33,7 @@ public class OutboxDispatcher {
 
     @Transactional
     public void dispatch(Long id) {
-        OutboxEvent event = repository.findById(id).orElse(null);
+        OutboxEvent event = repository.findByIdForUpdate(id).orElse(null);
         if (event == null || event.getPublishedAt() != null) {
             return; // já publicado por outra rodada / gatilho pós-commit
         }

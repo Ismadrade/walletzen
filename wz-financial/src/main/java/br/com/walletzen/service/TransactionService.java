@@ -2,6 +2,8 @@ package br.com.walletzen.service;
 
 import br.com.walletzen.client.UserValidationGateway;
 import br.com.walletzen.domain.Transaction;
+import br.com.walletzen.dto.event.TransactionDeletedData;
+import br.com.walletzen.dto.event.TransactionEventData;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
@@ -9,10 +11,12 @@ import br.com.walletzen.enums.TransactionType;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.TransactionNotFoundException;
 import br.com.walletzen.mapper.TransactionMapper;
+import br.com.walletzen.outbox.OutboxRecorder;
 import br.com.walletzen.repository.TransactionRepository;
 import br.com.walletzen.security.Caller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +41,10 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final TransactionMapper transactionMapper;
     private final UserValidationGateway userValidationGateway;
+    private final OutboxRecorder outboxRecorder;
+
+    @Value("${spring.kafka.topic.wz-transaction-events}")
+    private String transactionEventsTopic;
 
     /**
      * Lista as transações ativas do usuário, paginadas e opcionalmente filtradas
@@ -112,6 +120,7 @@ public class TransactionService {
      *
      * <p>Antes de gravar, o dono resolvido é validado sincronamente em {@code wz-user}
      * ({@link UserValidationGateway}): inexistente/inativo ⇒ 422; {@code wz-user} fora do ar ⇒ 503.
+     * Após gravar, um evento {@code TransactionCreated} é registrado na Outbox (mesma transação).
      */
     @Transactional
     public TransactionResponseDTO createTransaction(TransactionRequestDTO dto, Caller caller) {
@@ -125,7 +134,11 @@ public class TransactionService {
         Transaction transaction = transactionMapper.toEntity(dto);
         transaction.setUserId(ownerId);
         transaction.setRecordStatus(true);
-        return transactionMapper.toResponse(transactionRepository.save(transaction));
+
+        Transaction saved = transactionRepository.save(transaction);
+        outboxRecorder.record("Transaction", saved.getId().toString(), "TransactionCreated",
+                transactionEventsTopic, TransactionEventData.of(saved));
+        return transactionMapper.toResponse(saved);
     }
 
     @Transactional
@@ -137,7 +150,11 @@ public class TransactionService {
         transaction.setTransactionType(TransactionType.fromString(dto.transactionType()));
         transaction.setAmount(dto.amount());
         transaction.setDescription(dto.description());
-        return transactionMapper.toResponse(transactionRepository.save(transaction));
+
+        Transaction saved = transactionRepository.save(transaction);
+        outboxRecorder.record("Transaction", saved.getId().toString(), "TransactionUpdated",
+                transactionEventsTopic, TransactionEventData.of(saved));
+        return transactionMapper.toResponse(saved);
     }
 
     @Transactional
@@ -147,8 +164,15 @@ public class TransactionService {
         assertOwnerOrAdmin(transaction.getUserId(), caller);
         transaction.setRecordStatus(false);
         transactionRepository.save(transaction);
+        outboxRecorder.record("Transaction", transaction.getId().toString(), "TransactionDeleted",
+                transactionEventsTopic, new TransactionDeletedData(transaction.getId(), transaction.getUserId()));
     }
 
+    /**
+     * Cascata do evento {@code UserDeleted}: desativa em massa as transações do usuário.
+     * Não emite {@code TransactionDeleted} por linha de propósito — quem precisa do detalhe
+     * consome {@code UserDeleted} (evita tempestade de eventos).
+     */
     @Transactional
     public void deleteByUserId(UUID userId) {
         transactionRepository.deleteTransactionsByUserId(userId, LocalDateTime.now());

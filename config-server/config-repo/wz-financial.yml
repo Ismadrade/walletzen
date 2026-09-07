@@ -28,6 +28,7 @@ spring:
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
     topic:
       wz-user-deleted: wz-user-deleted
+      wz-transaction-events: wz-transaction-events
   cloud:
     openfeign:
       client:
@@ -66,7 +67,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,refresh,circuitbreakers,retries
+        include: health,info,refresh,circuitbreakers,retries,scheduledtasks
   health:
     circuitbreakers:
       enabled: true
+
+# Publicação de eventos de domínio via Outbox (poller). Ver plano 08 / Fase 4.
+outbox:
+  poll-interval: 1000        # ms entre varreduras do poller (fixedDelay)
+  batch-size: 100            # nº de linhas não publicadas por rodada
+  retention: 7d              # linhas publicadas mais antigas que isso são apagadas
+  purge-cron: "0 0 3 * * *"  # limpeza diária às 03:00

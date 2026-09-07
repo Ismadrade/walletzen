@@ -33,6 +33,11 @@ spring:
       group-id: wz-financial-group
     topic:
       wz-user-deleted: wz-user-deleted
+      wz-transaction-events: wz-transaction-events
+
+# Poller da Outbox: intervalo alto nos testes para não competir com as asserções.
+outbox:
+  poll-interval: 60000
 
 eureka:
   client:

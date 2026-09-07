@@ -33,6 +33,10 @@ spring:
     topic:
       wz-user-deleted: wz-user-deleted
 
+# Poller da Outbox: intervalo alto nos testes para não competir com as asserções.
+outbox:
+  poll-interval: 60000
+
 eureka:
   client:
     enabled: false

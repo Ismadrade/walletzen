@@ -24,6 +24,13 @@ spring:
     topic:
       wz-user-deleted: wz-user-deleted
 
+# Publicação do evento UserDeleted via Outbox (poller). Ver plano 08 / Fase 4.
+outbox:
+  poll-interval: 1000        # ms entre varreduras do poller (fixedDelay)
+  batch-size: 100
+  retention: 7d              # linhas publicadas mais antigas que isso são apagadas
+  purge-cron: "0 0 3 * * *"
+
 # Acesso à Admin API do Keycloak — o wz-user provisiona o login ao criar uma pessoa.
 keycloak:
   admin:

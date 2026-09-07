@@ -21,7 +21,7 @@ automaticamente.
 - [Arquitetura](#arquitetura)
 - [Stack](#stack)
 - [Serviços](#serviços)
-- [Comunicação assíncrona (Kafka)](#comunicação-assíncrona-kafka)
+- [Comunicação assíncrona (Kafka + Outbox)](#comunicação-assíncrona-kafka--outbox)
 - [Bancos de dados](#bancos-de-dados)
 - [Segurança](#segurança)
 - [APIs](#apis)
@@ -44,9 +44,9 @@ flowchart TD
         CFG["config-server<br/>:8888"]
         USER["wz-user<br/>:8091 /users"]
         FIN["wz-financial<br/>:8094 /financial"]
-        K[["Kafka<br/>topic: wz-user-deleted"]]
-        UDB[("wz-user-db<br/>PostgreSQL :5433")]
-        FDB[("wz-financial-db<br/>PostgreSQL :5434")]
+        K[["Kafka<br/>wz-user-deleted · wz-transaction-events"]]
+        UDB[("wz-user-db<br/>PostgreSQL :5433<br/>+ outbox_event")]
+        FDB[("wz-financial-db<br/>PostgreSQL :5434<br/>+ outbox_event")]
 
         GW --> USER
         GW --> FIN
@@ -56,7 +56,8 @@ flowchart TD
         GW -. config .-> CFG
         USER -. config .-> CFG
         FIN -. config .-> CFG
-        USER -- publica --> K
+        USER -- "outbox → poller" --> K
+        FIN -- "outbox → poller" --> K
         K -- consome --> FIN
         FIN -- "valida dono (HTTP + Resilience4j)" --> USER
         USER --> UDB
@@ -121,18 +122,64 @@ local/default).
 
 ---
 
-## Comunicação assíncrona (Kafka)
+## Comunicação assíncrona (Kafka + Outbox)
 
-- **Tópico:** `wz-user-deleted` (criado por `wz-user` com 3 partições, 1 réplica).
-- **Produtor:** `wz-user` → ao chamar `DELETE /users/{id}`, o usuário sofre
-  *soft delete* (`recordStatus = false`) e um `UserDeletedEvent`
-  (`{ "userId": "<uuid>" }`) é publicado.
-- **Consumidor:** `wz-financial` (`group-id: wz-financial-group`,
-  `auto-offset-reset: earliest`) recebe o evento e executa
-  `UPDATE Transaction SET recordStatus = false WHERE userId = :userId`.
-- Serialização das mensagens: JSON como `String` (Jackson), sem schema registry.
-- Infra local: `obsidiandynamics/kafka` + **Redpanda Console** em
-  `http://localhost:8081` para inspecionar tópicos.
+### Tópicos
+
+| Tópico | Produtor | Consumidor | Eventos |
+| ------ | -------- | ---------- | ------- |
+| `wz-user-deleted` | `wz-user` | `wz-financial` | `UserDeleted` |
+| `wz-transaction-events` | `wz-financial` | *(Fase 5 — `wz-reports` / notificações)* | `TransactionCreated`, `TransactionUpdated`, `TransactionDeleted` |
+
+Ambos com 3 partições, 1 réplica. Infra local: `obsidiandynamics/kafka` +
+**Redpanda Console** em `http://localhost:8081` para inspecionar tópicos.
+
+### Envelope (v1)
+
+Todo evento viaja num envelope versionado (JSON como `String`; sem schema registry):
+
+```jsonc
+{ "eventId": "<uuid>", "eventType": "TransactionCreated", "version": 1,
+  "occurredAt": "<iso-8601>", "aggregateType": "Transaction",
+  "aggregateId": "<uuid>", "data": { /* específico do eventType */ } }
+```
+
+`eventId` também vai no header Kafka `event-id`; `eventType` no header `event-type`.
+A *key* do registro é o `aggregateId` (ordem por agregado dentro da partição).
+
+### Padrão Outbox (entrega confiável)
+
+`wz-user` e `wz-financial` **não** publicam direto no Kafka. Cada mudança de estado
+grava o evento numa tabela `outbox_event` **na mesma transação** do banco — se a
+transação commita, o evento existe; se aborta, some. Um relay publica depois:
+
+- **`OutboxPoller`** — `@Scheduled(fixedDelay = 1s)` varre as linhas com
+  `published_at IS NULL` (índice parcial) e delega cada uma ao `OutboxDispatcher`,
+  que publica no Kafka **numa transação por linha** e marca `published_at`
+  (falha ⇒ `attempts++` / `last_error`, tenta de novo na próxima rodada).
+- **Gatilho pós-commit** — um `@TransactionalEventListener(AFTER_COMMIT)` acorda o
+  poller na hora, sem esperar o `fixedDelay`.
+- **Limpeza** — job diário apaga linhas publicadas mais antigas que `outbox.retention` (7d).
+
+Consequência: **Kafka fora do ar não quebra a escrita** — o evento fica na outbox e
+é entregue quando o broker volta. A entrega é *at-least-once* (a idempotência no
+consumidor chega na Etapa 2 da Fase 4).
+
+Config (`config-repo/{wz-user,wz-financial}.yml`):
+
+```yaml
+outbox:
+  poll-interval: 1000      # ms (fixedDelay do poller)
+  batch-size: 100
+  retention: 7d
+  purge-cron: "0 0 3 * * *"
+```
+
+### `UserDeleted` — fluxo do consumidor
+
+`wz-financial` recebe `UserDeleted`, lê `data.userId` do envelope e executa
+`UPDATE Transaction SET recordStatus = false WHERE userId = :userId`. A cascata
+**não** emite um `TransactionDeleted` por transação (evita tempestade de eventos).
 
 ---
 
@@ -174,12 +221,16 @@ válidos (respondem `503` rápido, sem pendurar) → `circuitbreakers` mostra `O
 
 ## Bancos de dados
 
-| Banco               | Imagem            | Porta host | Usado por      |
-| ------------------- | ----------------- | ---------- | -------------- |
-| `wz-user-db`        | `postgres:latest` | 5433       | `wz-user`      |
-| `wz-financial-db`   | `postgres:latest` | 5434       | `wz-financial` |
+| Banco               | Imagem            | Porta host | Usado por      | Tabelas principais |
+| ------------------- | ----------------- | ---------- | -------------- | ------------------ |
+| `wz-user-db`        | `postgres:latest` | 5433       | `wz-user`      | `wz_user`, `outbox_event` |
+| `wz-financial-db`   | `postgres:latest` | 5434       | `wz-financial` | `wz_transaction`, `outbox_event` |
 
 Credenciais padrão: `postgres` / `postgres`.
+
+`outbox_event` (Fase 4): fila transacional de eventos de domínio — ver
+[Comunicação assíncrona](#comunicação-assíncrona-kafka--outbox). Migrations
+`wz-user/V3__outbox_event.sql` e `wz-financial/V2__outbox_event.sql`.
 
 ### Migrations (Flyway)
 

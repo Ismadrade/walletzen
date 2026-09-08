@@ -175,11 +175,22 @@ outbox:
   purge-cron: "0 0 3 * * *"
 ```
 
-### `UserDeleted` — fluxo do consumidor
+### `UserDeleted` — consumidor resiliente
 
 `wz-financial` recebe `UserDeleted`, lê `data.userId` do envelope e executa
 `UPDATE Transaction SET recordStatus = false WHERE userId = :userId`. A cascata
 **não** emite um `TransactionDeleted` por transação (evita tempestade de eventos).
+
+O `UserDeletedConsumer` é `@Transactional` + `@RetryableTopic`:
+
+| Mecanismo | Comportamento |
+| --------- | ------------- |
+| **Retry topics** (`@RetryableTopic`, `attempts=4`, backoff 1s×2) | erro transitório → a mensagem vai para `wz-user-deleted-retry-0/1/2` (não bloqueia a partição principal); esgotado, vai para `wz-user-deleted-dlt` |
+| **Veneno** | `JsonProcessingException` (payload malformado) está em `exclude` → vai **direto** para a `-dlt`, sem reintentar |
+| **`@DltHandler`** | loga a mensagem que parou na DLT |
+| **Idempotência** | `IdempotencyGuard` grava `(event_id, consumer)` na tabela `processed_event` **na mesma transação** do handler; reentrega (at-least-once) da mesma mensagem → no-op. Rollback do handler desfaz a marca e o retry reprocessa |
+
+O `KafkaConfig` só tem o *producer* (usado pelo poller da Outbox e pelo encaminhamento dos retry topics) — o antigo `DefaultErrorHandler` in-memory saiu.
 
 ---
 
@@ -224,13 +235,15 @@ válidos (respondem `503` rápido, sem pendurar) → `circuitbreakers` mostra `O
 | Banco               | Imagem            | Porta host | Usado por      | Tabelas principais |
 | ------------------- | ----------------- | ---------- | -------------- | ------------------ |
 | `wz-user-db`        | `postgres:latest` | 5433       | `wz-user`      | `wz_user`, `outbox_event` |
-| `wz-financial-db`   | `postgres:latest` | 5434       | `wz-financial` | `wz_transaction`, `outbox_event` |
+| `wz-financial-db`   | `postgres:latest` | 5434       | `wz-financial` | `wz_transaction`, `outbox_event`, `processed_event` |
 
 Credenciais padrão: `postgres` / `postgres`.
 
-`outbox_event` (Fase 4): fila transacional de eventos de domínio — ver
-[Comunicação assíncrona](#comunicação-assíncrona-kafka--outbox). Migrations
-`wz-user/V3__outbox_event.sql` e `wz-financial/V2__outbox_event.sql`.
+`outbox_event` (Fase 4): fila transacional de eventos de domínio.
+`processed_event` (Fase 4): dedupe do consumidor (`(event_id, consumer)`).
+Ver [Comunicação assíncrona](#comunicação-assíncrona-kafka--outbox). Migrations
+`wz-user/V3__outbox_event.sql`, `wz-financial/V2__outbox_event.sql` e
+`wz-financial/V3__processed_event.sql`.
 
 ### Migrations (Flyway)
 
@@ -472,14 +485,16 @@ Backend/
 ├── wz-service-registry/     # Eureka Server         (:8761) — tem Dockerfile
 ├── wz-api-gateway/          # Spring Cloud Gateway  (:8765) — tem Dockerfile
 ├── wz-user/                 # microsserviço de usuários   (:8091, hexagonal) — tem Dockerfile
-│   └── src/main/resources/db/migration/   # V1 (schema) + V2 (keycloak_id) — Flyway
+│   └── src/main/resources/db/migration/   # V1 (schema) + V2 (keycloak_id) + V3 (outbox_event) — Flyway
 │   └── src/main/java/br/com/walletzen/
 │       ├── core/            # domínio + casos de uso (ports)
 │       ├── adapter/inbound/web/       # REST controller + DTOs
-│       └── adapter/outbound/          # JPA + Kafka publisher + Keycloak Admin (identity/)
+│       └── adapter/outbound/          # JPA + outbox/ (Kafka via Outbox) + Keycloak Admin (identity/)
 └── wz-financial/            # microsserviço financeiro    (:8094, camadas) — tem Dockerfile
-    └── src/main/resources/db/migration/   # V1__init_schema.sql (Flyway)
+    └── src/main/resources/db/migration/   # V1 (schema) + V2 (outbox_event) + V3 (processed_event) — Flyway
     └── src/main/java/br/com/walletzen/
-        ├── controller/ service/ repository/ domain/
-        └── consumer/       # UserDeletedConsumer (Kafka)
+        ├── controller/ service/ repository/ domain/ client/
+        ├── outbox/         # Outbox pattern (producer)
+        ├── idempotency/    # dedupe do consumidor
+        └── consumer/       # UserDeletedConsumer (@RetryableTopic + DLT)
 ```

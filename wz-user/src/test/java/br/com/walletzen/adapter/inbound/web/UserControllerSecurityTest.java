@@ -51,6 +51,12 @@ class UserControllerSecurityTest {
     }
 
     @Test
+    @DisplayName("GET /me sem token -> 401")
+    void meWithoutToken() throws Exception {
+        mockMvc.perform(get("/me")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("DELETE com role USER -> 403")
     void deleteAsUser() throws Exception {
         mockMvc.perform(delete("/" + UUID.randomUUID())

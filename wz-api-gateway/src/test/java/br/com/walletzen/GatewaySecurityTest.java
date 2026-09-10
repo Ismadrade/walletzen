@@ -25,4 +25,15 @@ class GatewaySecurityTest {
     void protectedRouteWithoutToken() {
         webTestClient.get().uri("/users/anything").exchange().expectStatus().isUnauthorized();
     }
+
+    @Test
+    @DisplayName("preflight CORS da SPA passa sem token e traz Allow-Origin")
+    void corsPreflightIsAllowed() {
+        webTestClient.options().uri("/users/anything")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "GET")
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("Access-Control-Allow-Origin", "http://localhost:5173");
+    }
 }

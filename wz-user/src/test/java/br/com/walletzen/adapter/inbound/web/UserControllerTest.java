@@ -11,6 +11,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +22,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -99,5 +102,42 @@ public class UserControllerTest {
 
     }
 
+    private static JwtAuthenticationToken tokenWithUsername(String preferredUsername) {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "none")
+                .claim("preferred_username", preferredUsername).build();
+        return new JwtAuthenticationToken(jwt);
+    }
 
+    @Test
+    @DisplayName("GET /me resolve o usuário pelo claim preferred_username")
+    void meReturnsCurrentUser() throws Exception {
+        UUID userId = UUID.randomUUID();
+        User user = new User(userId, "Eva Test", "11122233300", "eva@x.com", LocalDate.of(1990, 1, 1), true);
+        when(userService.getUserById(userId)).thenReturn(user);
+
+        mockMvc.perform(get("/me").principal(tokenWithUsername(userId.toString())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(userId.toString()))
+                .andExpect(jsonPath("$.name").value("Eva Test"))
+                .andExpect(jsonPath("$.email").value("eva@x.com"));
+    }
+
+    @Test
+    @DisplayName("GET /me -> 404 quando o token não tem linha em wz_user")
+    void meNotFound() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(userService.getUserById(userId)).thenThrow(new UserNotFoundException(userId));
+
+        mockMvc.perform(get("/me").principal(tokenWithUsername(userId.toString())))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("GET /me -> 404 quando o preferred_username não é UUID (usuário seed do realm)")
+    void meSeedUser() throws Exception {
+        mockMvc.perform(get("/me").principal(tokenWithUsername("alice")))
+                .andExpect(status().isNotFound());
+
+        verify(userService, never()).getUserById(any());
+    }
 }

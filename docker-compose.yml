@@ -103,6 +103,7 @@ services:
       - EUREKA_PORT=8761
       - CONFIG_SERVER_URL=http://config-server:8888
       - KEYCLOAK_JWKS_URI=http://keycloak:8080/realms/walletzen/protocol/openid-connect/certs
+      - FRONTEND_ORIGIN=http://localhost:5173
     depends_on:
       wz-service-registry:
         condition: service_healthy

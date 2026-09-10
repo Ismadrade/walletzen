@@ -13,6 +13,7 @@ import br.com.walletzen.core.port.input.GetUserUseCase;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -67,6 +68,23 @@ public class UserController {
     @GetMapping("{userId}")
     public ResponseEntity<UserResponse> getUserById(@PathVariable("userId") UUID userId) {
         return ResponseEntity.status(HttpStatus.OK).body(userWebMapper.toResponse(getUserUseCase.getUserById(userId)));
+    }
+
+    /**
+     * Cadastro do próprio usuário logado. O {@code wz_user.id} é o claim
+     * {@code preferred_username} do token (o SPA usa o retorno para exibir o nome e
+     * como dono nas chamadas ao {@code wz-financial}). Login sem uma linha em
+     * {@code wz_user} (usuários seed do realm) → {@code 404}.
+     */
+    @GetMapping("me")
+    public ResponseEntity<UserResponse> getCurrentUser(JwtAuthenticationToken token) {
+        UUID userId;
+        try {
+            userId = UUID.fromString(token.getToken().getClaimAsString("preferred_username"));
+        } catch (IllegalArgumentException | NullPointerException e) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(userWebMapper.toResponse(getUserUseCase.getUserById(userId)));
     }
 
     @PostMapping

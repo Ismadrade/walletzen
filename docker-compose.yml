@@ -155,6 +155,8 @@ services:
       - KC_BOOTSTRAP_ADMIN_PASSWORD=${KC_ADMIN_PASSWORD:-admin}
     volumes:
       - ./keycloak/realm-walletzen.json:/opt/keycloak/data/import/realm-walletzen.json:ro
+      # tema de login do WalletZen (start-dev não cacheia tema: editar CSS e dar F5 basta)
+      - ./keycloak/themes:/opt/keycloak/themes:ro
     # Sem healthcheck: a imagem ubi-micro não tem shell. Os serviços usam jwk-set-uri
     # lazy e dependem só de 'service_started'.
 

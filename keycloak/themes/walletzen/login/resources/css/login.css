@@ -198,6 +198,17 @@ form#kc-form-login {
   color: var(--wz-slate-600);
 }
 
+/* o rótulo não é um link; alguns browsers põem a mãozinha no <label for> */
+.pf-v5-c-form__label,
+.pf-v5-c-form__label-text {
+  cursor: default;
+}
+
+/* respiro entre o rótulo e o campo (o tema base deixa os dois colados) */
+.pf-v5-c-form__group > .pf-v5-c-form__label {
+  margin-bottom: 8px;
+}
+
 .pf-v5-c-form-control {
   border: 1px solid var(--wz-slate-300);
   border-radius: 12px;

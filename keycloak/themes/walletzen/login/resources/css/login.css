@@ -199,11 +199,19 @@ form#kc-form-login {
 }
 
 .pf-v5-c-form-control {
-  --pf-v5-c-form-control--BorderBottomColor: transparent;
   border: 1px solid var(--wz-slate-300);
   border-radius: 12px;
   background: var(--wz-white);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+/* O tema base desenha o campo com DOIS pseudo-elementos de `inset: 0` e
+   `border-radius: 0`: o ::before faz a moldura e o ::after o sublinhado.
+   Ambos vazam nos cantos da borda arredondada — quem desenha a borda aqui é o
+   próprio .pf-v5-c-form-control. */
+.pf-v5-c-form-control::before,
+.pf-v5-c-form-control::after {
+  display: none;
 }
 
 .pf-v5-c-form-control input {
@@ -215,7 +223,24 @@ form#kc-form-login {
 
 .pf-v5-c-form-control:focus-within {
   border-color: var(--wz-indigo-500);
+  background: var(--wz-indigo-50);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+/* o destaque de foco é a borda + o glow indigo; sem isso o browser ainda
+   desenha o anel dourado dele por cima */
+.pf-v5-c-form-control input:focus,
+.pf-v5-c-form-control input:focus-visible {
+  outline: none;
+}
+
+/* o preenchimento automático do Chrome pinta o campo de amarelo */
+.pf-v5-c-form-control input:-webkit-autofill,
+.pf-v5-c-form-control input:-webkit-autofill:hover,
+.pf-v5-c-form-control input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--wz-indigo-50) inset;
+  -webkit-text-fill-color: var(--wz-slate-900);
+  caret-color: var(--wz-slate-900);
 }
 
 /* o grupo da senha tem o botão de mostrar/ocultar ao lado do campo */
@@ -224,16 +249,30 @@ form#kc-form-login {
   background: transparent;
 }
 
+/* botão de mostrar/ocultar a senha: só o ícone, sem caixa */
 .pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control {
-  border: 1px solid var(--wz-slate-300);
-  border-radius: 12px;
-  background: var(--wz-white);
+  border: 0;
+  border-radius: 10px;
+  padding-inline: 10px;
+  background: transparent;
   color: var(--wz-slate-600);
 }
 
-.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control:hover {
-  border-color: var(--wz-indigo-500);
+/* o tema base também desenha a moldura desse botão com pseudo-elementos */
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control::before,
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control::after {
+  display: none;
+}
+
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control:hover,
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control:focus {
+  background: transparent;
   color: var(--wz-indigo-600);
+}
+
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline-offset: 2px;
 }
 
 /* ---------- botão de entrar ---------- */

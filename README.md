@@ -277,6 +277,22 @@ Provider. Realm `walletzen` importado de `keycloak/realm-walletzen.json` no boot
 - **Usuários seed:** `alice` / `alice` (role `USER`) · `admin` / `admin` (roles `USER` + `ADMIN`).
 - Console admin: `http://localhost:8080` (login `admin` / `admin` — é o admin do *master*).
 
+### Tema de login
+
+A tela de login usa o tema **`walletzen`** (`keycloak/themes/walletzen/login/`), montado
+no container em `/opt/keycloak/themes` e selecionado pelo `loginTheme` do realm.
+
+- Herda de `keycloak.v2` (PatternFly v5) e **só acrescenta CSS** — o HTML continua sendo
+  o do Keycloak, então atualizar a imagem não quebra o tema.
+- Layout em duas colunas: painel indigo com a logo + `realm.displayName` ("WalletZen") e
+  uma tagline, e o formulário em branco ao lado. Abaixo de 900px vira faixa no topo.
+- `internationalizationEnabled` + `defaultLocale: pt-BR` deixam a tela em português
+  (tradução nativa do Keycloak, sem bundle próprio).
+- `start-dev` **não cacheia tema**: editar o CSS e dar F5 já reflete. Mudanças no
+  `realm-walletzen.json`, porém, só valem em um realm novo — o `--import-realm` ignora
+  um realm já existente (`docker compose rm -sf keycloak && docker compose up -d keycloak`
+  recria do zero).
+
 Os três serviços expostos são **resource servers OAuth2**: validam o JWT contra o JWKS do
 Keycloak. O `wz-api-gateway` barra na borda (sem token → `401`) e repassa o `Authorization`
 para o downstream; `wz-user` e `wz-financial` revalidam e aplicam as regras de role.

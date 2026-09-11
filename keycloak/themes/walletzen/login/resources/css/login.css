@@ -1,0 +1,330 @@
+/*
+ * WalletZen — tema de login.
+ *
+ * Só CSS sobre o HTML do tema `keycloak.v2` (PatternFly v5). Estrutura usada:
+ *
+ *   body#keycloak-bg
+ *     .pf-v5-c-login
+ *       .pf-v5-c-login__container          -> vira o cartão (grid de 2 colunas)
+ *         #kc-header                       -> painel indigo (marca)
+ *           #kc-header-wrapper             -> texto = realm.displayName ("WalletZen")
+ *         .pf-v5-c-login__main             -> painel branco (formulário)
+ *           #kc-page-title
+ *           form#kc-form-login
+ *             .pf-v5-c-form__group ...
+ *             #kc-login                    -> botão de entrar
+ */
+
+:root {
+  --wz-indigo-900: #312e81;
+  --wz-indigo-700: #4338ca;
+  --wz-indigo-600: #4f46e5;
+  --wz-indigo-500: #6366f1;
+  --wz-indigo-50: #eef2ff;
+  --wz-slate-900: #0f172a;
+  --wz-slate-600: #475569;
+  --wz-slate-300: #cbd5e1;
+  --wz-white: #fff;
+  --wz-radius: 24px;
+}
+
+/* ---------- fundo da página ---------- */
+
+body#keycloak-bg {
+  min-height: 100vh;
+  margin: 0;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--wz-indigo-50);
+  background-image:
+    radial-gradient(60rem 60rem at 12% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(45rem 45rem at 105% 110%, rgba(67, 56, 202, 0.16), transparent 60%);
+  font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+}
+
+.pf-v5-c-login {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  /* quem centraliza é o body; o `min-height: 100vh` do tema base somado ao
+     padding do body estouraria a viewport em telas baixas */
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+
+/* ---------- o cartão ---------- */
+
+.pf-v5-c-login__container {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  /* o tema base declara `"header" "main"` (1 coluna, 2 linhas); sem sobrescrever
+     as areas nomeadas o grid de 2 colunas não tem efeito */
+  grid-template-areas: "header main";
+  width: 100%;
+  max-width: 1040px;
+  min-height: 600px;
+  margin: 0;
+  /* o tema base usa padding lateral para centralizar o card; aqui ele é o card */
+  padding: 0;
+  gap: 0;
+  border-radius: var(--wz-radius);
+  overflow: hidden;
+  background: var(--wz-white);
+  box-shadow: 0 30px 60px -20px rgba(49, 46, 129, 0.35);
+}
+
+/* ---------- painel da marca (esquerda) ---------- */
+
+#kc-header {
+  grid-area: header;
+  /* o tema base dá margin-top e largura fixa ao header; aqui ele precisa
+     preencher a célula do grid */
+  margin: 0;
+  width: auto;
+  max-width: none;
+  align-self: stretch;
+  justify-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 56px 48px;
+  color: var(--wz-white);
+  background:
+    radial-gradient(28rem 28rem at 80% 0%, rgba(255, 255, 255, 0.16), transparent 55%),
+    radial-gradient(22rem 22rem at 0% 100%, rgba(255, 255, 255, 0.12), transparent 55%),
+    linear-gradient(150deg, var(--wz-indigo-600) 0%, var(--wz-indigo-700) 55%, var(--wz-indigo-900) 100%);
+}
+
+/* a logo entra como imagem de fundo antes do nome do realm */
+#kc-header::before {
+  content: "";
+  width: min(230px, 42vh);
+  aspect-ratio: 1;
+  background: url("../img/logo-white.png") center / contain no-repeat;
+  filter: drop-shadow(0 12px 24px rgba(15, 23, 42, 0.3));
+}
+
+/* #kc-header-wrapper traz o realm.displayName — vira o wordmark */
+#kc-header-wrapper {
+  padding: 0;
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-align: center;
+  color: var(--wz-white);
+  text-transform: none;
+}
+
+#kc-header-wrapper::after {
+  content: "Suas finanças, em paz.";
+  display: block;
+  margin-top: 10px;
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* ---------- painel do formulário (direita) ---------- */
+
+.pf-v5-c-login__main {
+  grid-area: main;
+  /* idem: preencher a célula em vez do `align-self: start` do tema base */
+  margin: 0;
+  width: auto;
+  max-width: none;
+  align-self: stretch;
+  justify-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 56px;
+  background: var(--wz-white);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* o conteúdo do formulário fica numa coluna estreita, centrada no painel */
+.pf-v5-c-login__main-header,
+.pf-v5-c-login__main-body {
+  width: 100%;
+  max-width: 380px;
+  margin-inline: auto;
+}
+
+.pf-v5-c-login__main-header {
+  padding: 0 0 28px;
+  text-align: left;
+}
+
+#kc-page-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--wz-slate-900);
+}
+
+.pf-v5-c-login__main-body {
+  padding: 0;
+}
+
+/* o tema base deixa um grupo vazio (remember-me/esqueci a senha desligados) */
+.pf-v5-c-form__group:empty {
+  display: none;
+}
+
+.pf-v5-c-login__main-footer:empty {
+  display: none;
+}
+
+/* ---------- campos ---------- */
+
+form#kc-form-login {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.pf-v5-c-form__label-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--wz-slate-600);
+}
+
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BorderBottomColor: transparent;
+  border: 1px solid var(--wz-slate-300);
+  border-radius: 12px;
+  background: var(--wz-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.pf-v5-c-form-control input {
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  color: var(--wz-slate-900);
+  background: transparent;
+}
+
+.pf-v5-c-form-control:focus-within {
+  border-color: var(--wz-indigo-500);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+/* o grupo da senha tem o botão de mostrar/ocultar ao lado do campo */
+.pf-v5-c-input-group {
+  gap: 8px;
+  background: transparent;
+}
+
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control {
+  border: 1px solid var(--wz-slate-300);
+  border-radius: 12px;
+  background: var(--wz-white);
+  color: var(--wz-slate-600);
+}
+
+.pf-v5-c-input-group__item .pf-v5-c-button.pf-m-control:hover {
+  border-color: var(--wz-indigo-500);
+  color: var(--wz-indigo-600);
+}
+
+/* ---------- botão de entrar ---------- */
+
+#kc-login.pf-v5-c-button.pf-m-primary {
+  margin-top: 6px;
+  padding: 13px 20px;
+  border: 0;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--wz-white);
+  background: linear-gradient(135deg, var(--wz-indigo-600), var(--wz-indigo-500));
+  box-shadow: 0 12px 22px -10px rgba(79, 70, 229, 0.85);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+#kc-login.pf-v5-c-button.pf-m-primary:hover {
+  filter: brightness(1.08);
+}
+
+#kc-login.pf-v5-c-button.pf-m-primary:active {
+  transform: translateY(1px);
+}
+
+#kc-login.pf-v5-c-button.pf-m-primary:focus-visible {
+  outline: 3px solid rgba(99, 102, 241, 0.45);
+  outline-offset: 2px;
+}
+
+/* ---------- mensagens de erro ---------- */
+
+.pf-v5-c-alert.pf-m-danger,
+.pf-v5-c-alert.pf-m-warning,
+.pf-v5-c-alert.pf-m-success {
+  border-radius: 12px;
+}
+
+.pf-v5-c-form-control.pf-m-error {
+  border-color: #dc2626;
+}
+
+/* ---------- responsivo ---------- */
+
+@media (max-width: 900px) {
+  body#keycloak-bg {
+    padding: 16px;
+    align-items: flex-start;
+  }
+
+  .pf-v5-c-login__container {
+    grid-template-columns: 1fr;
+    grid-template-areas: "header" "main";
+    min-height: 0;
+    max-width: 460px;
+    border-radius: 20px;
+  }
+
+  /* a marca vira uma faixa no topo do formulário */
+  #kc-header {
+    flex-direction: row;
+    justify-content: center;
+    gap: 14px;
+    padding: 26px 24px;
+  }
+
+  #kc-header::before {
+    width: 56px;
+  }
+
+  #kc-header-wrapper {
+    font-size: 1.5rem;
+    text-align: left;
+  }
+
+  #kc-header-wrapper::after {
+    margin-top: 2px;
+    font-size: 0.8rem;
+  }
+
+  .pf-v5-c-login__main {
+    padding: 32px 24px 36px;
+  }
+
+  #kc-page-title {
+    font-size: 1.35rem;
+  }
+}
+
+@media (max-width: 380px) {
+  #kc-header-wrapper::after {
+    display: none;
+  }
+}

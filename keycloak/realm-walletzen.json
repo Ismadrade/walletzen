@@ -1,10 +1,15 @@
 {
   "realm": "walletzen",
+  "displayName": "WalletZen",
   "enabled": true,
   "sslRequired": "none",
   "registrationAllowed": false,
   "loginWithEmailAllowed": true,
   "accessTokenLifespan": 900,
+  "loginTheme": "walletzen",
+  "internationalizationEnabled": true,
+  "supportedLocales": [ "pt-BR" ],
+  "defaultLocale": "pt-BR",
   "roles": {
     "realm": [
       { "name": "USER", "description": "Usuário padrão do WalletZen" },

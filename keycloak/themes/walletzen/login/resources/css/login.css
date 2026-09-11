@@ -234,19 +234,56 @@ form#kc-form-login {
   outline: none;
 }
 
-/* o preenchimento automático do Chrome pinta o campo de amarelo */
+/* o preenchimento automático do Chrome pinta o campo de amarelo; o fundo
+   acompanha o estado da caixa (branco em repouso, indigo no foco) */
 .pf-v5-c-form-control input:-webkit-autofill,
-.pf-v5-c-form-control input:-webkit-autofill:hover,
-.pf-v5-c-form-control input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px var(--wz-indigo-50) inset;
+.pf-v5-c-form-control input:-webkit-autofill:hover {
+  -webkit-box-shadow: 0 0 0 1000px var(--wz-white) inset;
   -webkit-text-fill-color: var(--wz-slate-900);
   caret-color: var(--wz-slate-900);
 }
 
-/* o grupo da senha tem o botão de mostrar/ocultar ao lado do campo */
+.pf-v5-c-form-control input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--wz-indigo-50) inset;
+}
+
+/* O campo de senha vem embrulhado num input-group junto com o botão do olho.
+   Quem vira a "caixa" do campo é o grupo, para o olho ficar DENTRO dele e a
+   senha ter exatamente a mesma largura do campo de usuário. */
 .pf-v5-c-input-group {
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 0;
+  border: 1px solid var(--wz-slate-300);
+  border-radius: 12px;
+  background: var(--wz-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.pf-v5-c-input-group::before,
+.pf-v5-c-input-group::after {
+  display: none;
+}
+
+.pf-v5-c-input-group:focus-within {
+  border-color: var(--wz-indigo-500);
+  background: var(--wz-indigo-50);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
+}
+
+.pf-v5-c-input-group__item.pf-m-fill {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* dentro do grupo o campo não desenha borda nem fundo próprios */
+.pf-v5-c-input-group .pf-v5-c-form-control,
+.pf-v5-c-input-group .pf-v5-c-form-control:focus-within {
+  border: 0;
+  border-radius: 0;
   background: transparent;
+  box-shadow: none;
 }
 
 /* botão de mostrar/ocultar a senha: só o ícone, sem caixa */

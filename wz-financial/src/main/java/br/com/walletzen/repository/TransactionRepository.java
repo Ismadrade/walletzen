@@ -1,6 +1,7 @@
 package br.com.walletzen.repository;
 
 import br.com.walletzen.domain.Transaction;
+import br.com.walletzen.enums.TransactionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,8 +10,10 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,7 +43,30 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
                                        @Param("end") LocalDate end,
                                        Pageable pageable);
 
+    /** Sum and count per transaction type, with the same filter as {@link #findActiveByUser}. */
+    @Query("""
+            SELECT t.transactionType AS type, SUM(t.amount) AS total, COUNT(t) AS quantity
+            FROM Transaction t
+            WHERE t.userId = :userId
+              AND t.recordStatus = true
+              AND (CAST(:start AS date) IS NULL OR t.transactionDate >= :start)
+              AND (CAST(:end AS date) IS NULL OR t.transactionDate < :end)
+            GROUP BY t.transactionType
+            """)
+    List<TypeTotal> sumActiveByUserGroupedByType(@Param("userId") UUID userId,
+                                                 @Param("start") LocalDate start,
+                                                 @Param("end") LocalDate end);
+
     @Modifying
     @Query("UPDATE Transaction t SET t.recordStatus = false, t.updatedAt = :now WHERE t.userId = :userId")
     void deleteTransactionsByUserId(@Param("userId") UUID userId, @Param("now") LocalDateTime now);
+
+    /** Projection of {@link #sumActiveByUserGroupedByType}. */
+    interface TypeTotal {
+        TransactionType getType();
+
+        BigDecimal getTotal();
+
+        long getQuantity();
+    }
 }

@@ -3,6 +3,7 @@ package br.com.walletzen.controller;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
+import br.com.walletzen.dto.response.TransactionSummaryDTO;
 import br.com.walletzen.security.Caller;
 import br.com.walletzen.service.TransactionService;
 import jakarta.validation.Valid;
@@ -31,6 +32,15 @@ public class TransactionController {
             JwtAuthenticationToken auth) {
         return ResponseEntity.ok(
                 transactionService.getTransactionsByUser(userId, year, month, page, size, Caller.from(auth)));
+    }
+
+    @GetMapping("/user/{userId}/summary")
+    public ResponseEntity<TransactionSummaryDTO> getSummaryByUser(
+            @PathVariable UUID userId,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            JwtAuthenticationToken auth) {
+        return ResponseEntity.ok(transactionService.getSummaryByUser(userId, year, month, Caller.from(auth)));
     }
 
     @GetMapping("/{id}")

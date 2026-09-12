@@ -7,6 +7,7 @@ import br.com.walletzen.dto.event.TransactionEventData;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
+import br.com.walletzen.dto.response.TransactionSummaryDTO;
 import br.com.walletzen.enums.TransactionType;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.TransactionNotFoundException;
@@ -25,6 +26,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -66,6 +69,34 @@ public class TransactionService {
                 transactionRepository.findActiveByUser(userId, range.start(), range.end(), pageable);
 
         return PageResponseDTO.from(result.map(transactionMapper::toResponse));
+    }
+
+    /**
+     * Totais do período (mesmo filtro da listagem), calculados no banco — não dependem
+     * de qual página a tela está mostrando.
+     */
+    @Transactional(readOnly = true)
+    public TransactionSummaryDTO getSummaryByUser(UUID userId, Integer year, Integer month, Caller caller) {
+        assertOwnerOrAdmin(userId, caller);
+        DateRange range = resolveRange(year, month);
+
+        BigDecimal income = BigDecimal.ZERO;
+        BigDecimal expense = BigDecimal.ZERO;
+        long expenseCount = 0;
+        for (TransactionRepository.TypeTotal row
+                : transactionRepository.sumActiveByUserGroupedByType(userId, range.start(), range.end())) {
+            if (row.getType() == TransactionType.INCOME) {
+                income = row.getTotal();
+            } else {
+                expense = row.getTotal();
+                expenseCount = row.getQuantity();
+            }
+        }
+
+        BigDecimal averageExpense = expenseCount == 0
+                ? BigDecimal.ZERO
+                : expense.divide(BigDecimal.valueOf(expenseCount), 2, RoundingMode.HALF_EVEN);
+        return new TransactionSummaryDTO(income, expense, income.subtract(expense), expenseCount, averageExpense);
     }
 
     private Pageable buildPageable(int page, int size) {

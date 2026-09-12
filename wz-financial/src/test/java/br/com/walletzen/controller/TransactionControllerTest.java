@@ -3,6 +3,7 @@ package br.com.walletzen.controller;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
+import br.com.walletzen.dto.response.TransactionSummaryDTO;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
 import br.com.walletzen.exception.TransactionNotFoundException;
@@ -136,6 +137,20 @@ class TransactionControllerTest {
     void getByIdMalformed() throws Exception {
         mockMvc.perform(get("/transactions/{id}", "not-a-uuid"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("GET /transactions/user/{userId}/summary returns the period totals")
+    void getSummary() throws Exception {
+        when(transactionService.getSummaryByUser(eq(userId), eq(2026), eq(8), any(Caller.class)))
+                .thenReturn(new TransactionSummaryDTO(new BigDecimal("8700.00"), new BigDecimal("2670.80"),
+                        new BigDecimal("6029.20"), 3, new BigDecimal("890.27")));
+
+        mockMvc.perform(get("/transactions/user/{userId}/summary", userId).param("year", "2026").param("month", "8"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.balance").value(6029.20))
+                .andExpect(jsonPath("$.averageExpense").value(890.27))
+                .andExpect(jsonPath("$.expenseCount").value(3));
     }
 
     @Test

@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,7 +54,7 @@ class TransactionControllerTest {
     private final UUID userId = UUID.randomUUID();
 
     private TransactionResponseDTO response() {
-        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", true);
+        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", LocalDateTime.now(), true);
     }
 
     private String requestJson(String type, String amount) throws Exception {

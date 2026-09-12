@@ -79,7 +79,7 @@ class TransactionServiceTest {
     }
 
     private TransactionResponseDTO sampleResponse() {
-        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", true);
+        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", LocalDateTime.now(), true);
     }
 
     @Test

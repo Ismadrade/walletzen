@@ -3,6 +3,7 @@ package br.com.walletzen.dto.event;
 import br.com.walletzen.domain.Transaction;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.UUID;
 
 /** {@code data} de {@code TransactionCreated} / {@code TransactionUpdated}. */
@@ -11,7 +12,8 @@ public record TransactionEventData(
         UUID userId,
         String transactionType,
         BigDecimal amount,
-        String description) {
+        String description,
+        LocalDate transactionDate) {
 
     public static TransactionEventData of(Transaction t) {
         return new TransactionEventData(
@@ -19,6 +21,7 @@ public record TransactionEventData(
                 t.getUserId(),
                 t.getTransactionType() == null ? null : t.getTransactionType().name(),
                 t.getAmount(),
-                t.getDescription());
+                t.getDescription(),
+                t.getTransactionDate());
     }
 }

@@ -48,7 +48,7 @@ public class TransactionService {
 
     /**
      * Lista as transações ativas do usuário, paginadas e opcionalmente filtradas
-     * por período de criação (ano, ou ano + mês).
+     * pelo período da data do lançamento ({@code transactionDate}: ano, ou ano + mês).
      *
      * @param year  ano (obrigatório quando {@code month} é informado)
      * @param month mês 1-12 (opcional; exige {@code year})
@@ -75,7 +75,7 @@ public class TransactionService {
         if (size < 1) {
             throw new InvalidFilterException("size must be greater than zero");
         }
-        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "createdAt"));
+        return PageRequest.of(page, Math.min(size, MAX_PAGE_SIZE), Sort.by(Sort.Direction.DESC, "transactionDate", "createdAt"));
     }
 
     private DateRange resolveRange(Integer year, Integer month) {
@@ -90,17 +90,15 @@ public class TransactionService {
         }
 
         try {
-            LocalDateTime start = (month == null)
-                    ? LocalDate.of(year, 1, 1).atStartOfDay()
-                    : LocalDate.of(year, month, 1).atStartOfDay();
-            LocalDateTime end = (month == null) ? start.plusYears(1) : start.plusMonths(1);
+            LocalDate start = LocalDate.of(year, month == null ? 1 : month, 1);
+            LocalDate end = (month == null) ? start.plusYears(1) : start.plusMonths(1);
             return new DateRange(start, end);
         } catch (DateTimeException ex) {
             throw new InvalidFilterException("invalid year/month: " + ex.getMessage());
         }
     }
 
-    private record DateRange(LocalDateTime start, LocalDateTime end) {
+    private record DateRange(LocalDate start, LocalDate end) {
         private static final DateRange UNBOUNDED = new DateRange(null, null);
     }
 
@@ -150,6 +148,9 @@ public class TransactionService {
         transaction.setTransactionType(TransactionType.fromString(dto.transactionType()));
         transaction.setAmount(dto.amount());
         transaction.setDescription(dto.description());
+        if (dto.transactionDate() != null) { // omitida = mantém a data atual
+            transaction.setTransactionDate(dto.transactionDate());
+        }
 
         Transaction saved = transactionRepository.save(transaction);
         outboxRecorder.record("Transaction", saved.getId().toString(), "TransactionUpdated",

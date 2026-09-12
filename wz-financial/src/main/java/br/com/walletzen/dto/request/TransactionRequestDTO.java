@@ -3,6 +3,7 @@ package br.com.walletzen.dto.request;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -20,6 +21,6 @@ public record TransactionRequestDTO(
         UUID userId,
         @NotBlank String transactionType,
         @NotNull @Positive BigDecimal amount,
-        String description,
+        @NotBlank @Size(max = 255) String description,
         LocalDate transactionDate) {
 }

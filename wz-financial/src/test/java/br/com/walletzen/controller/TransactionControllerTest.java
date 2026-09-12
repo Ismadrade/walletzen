@@ -164,6 +164,39 @@ class TransactionControllerTest {
     }
 
     @Test
+    @DisplayName("POST /transactions returns 400 when the description is missing or blank")
+    void createBlankDescription() throws Exception {
+        String missing = """
+                {"transactionType": "INCOME", "amount": 10.00}
+                """;
+        String blank = """
+                {"transactionType": "INCOME", "amount": 10.00, "description": "   "}
+                """;
+
+        for (String body : new String[] {missing, blank}) {
+            mockMvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("description")));
+        }
+
+        verify(transactionService, never()).createTransaction(any(), any());
+    }
+
+    @Test
+    @DisplayName("PUT /transactions/{id} returns 400 when the description is longer than 255 characters")
+    void updateDescriptionTooLong() throws Exception {
+        String body = """
+                {"transactionType": "INCOME", "amount": 10.00, "description": "%s"}
+                """.formatted("a".repeat(256));
+
+        mockMvc.perform(put("/transactions/{id}", transactionId).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("description")));
+
+        verify(transactionService, never()).updateTransaction(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("POST /transactions returns 400 for an unknown transaction type")
     void createInvalidType() throws Exception {
         when(transactionService.createTransaction(any(), any(Caller.class))).thenThrow(new InvalidTransactionTypeException("TRANSFER"));

@@ -371,10 +371,10 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 
 | Método | Caminho            | Descrição |
 | ------ | ------------------ | --------- |
-| GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Ordena por `createdAt` desc. **Dono ou ADMIN** (`403` para outro usuário). |
+| GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Filtra e ordena pela data do lançamento (`transactionDate` desc, desempate por `createdAt`). **Dono ou ADMIN** (`403` para outro usuário). |
 | GET    | `/{id}`            | Busca transação ativa por `UUID`. **Dono ou ADMIN**. |
-| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (`amount`/`transactionType` obrigatórios, `amount` positivo). `201 Created`. **O dono é sempre quem está autenticado** — `userId` no body é ignorado para um `USER` comum; só um `ADMIN` pode usá-lo para lançar em nome de outra pessoa. Sem `userId` resolvível → `400`. O dono é validado em `wz-user` (ver *Comunicação síncrona*): inexistente/inativo → `422`; `wz-user` fora do ar → `503`. |
-| PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description`. **Dono ou ADMIN**. |
+| POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (`amount`/`transactionType`/`description` obrigatórios, `amount` positivo, `description` até 255 caracteres; `transactionDate` `yyyy-MM-dd` opcional, padrão = dia da gravação). `201 Created`. **O dono é sempre quem está autenticado** — `userId` no body é ignorado para um `USER` comum; só um `ADMIN` pode usá-lo para lançar em nome de outra pessoa. Sem `userId` resolvível → `400`. O dono é validado em `wz-user` (ver *Comunicação síncrona*): inexistente/inativo → `422`; `wz-user` fora do ar → `503`. |
+| PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description` e `transactionDate` (omitida = mantém a atual). **Dono ou ADMIN**. |
 | DELETE | `/{id}`            | *Soft delete* (`204 No Content`). **Dono ou ADMIN** — um `USER` pode apagar as próprias transações, não as de outros. |
 
 Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
@@ -407,7 +407,7 @@ Erros são padronizados por `GlobalExceptionHandler` em ambos os serviços
 | `id`             | UUID                      | gerado |
 | `transactionType`| enum `INCOME` / `EXPENSE` | obrigatório |
 | `amount`         | BigDecimal(10,2)          | obrigatório |
-| `description`    | String                    | opcional |
+| `description`    | String(255)               | obrigatório (não pode ser vazio) |
 | `userId`         | UUID                      | obrigatório (referência lógica ao `wz-user`) |
 | `createdAt` / `updatedAt` | LocalDateTime    | automáticos |
 | `recordStatus`   | boolean                   | `true` = ativo (soft delete) |

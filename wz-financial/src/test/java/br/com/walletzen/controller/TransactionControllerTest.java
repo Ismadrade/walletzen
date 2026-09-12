@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -54,12 +55,12 @@ class TransactionControllerTest {
     private final UUID userId = UUID.randomUUID();
 
     private TransactionResponseDTO response() {
-        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", LocalDateTime.now(), true);
+        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", LocalDate.now(), LocalDateTime.now(), true);
     }
 
     private String requestJson(String type, String amount) throws Exception {
         return objectMapper.writeValueAsString(new TransactionRequestDTO(
-                userId, type, amount == null ? null : new BigDecimal(amount), "Salário"));
+                userId, type, amount == null ? null : new BigDecimal(amount), "Salário", null));
     }
 
     @Test
@@ -160,6 +161,39 @@ class TransactionControllerTest {
                 .andExpect(status().isBadRequest());
 
         verify(transactionService, never()).createTransaction(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /transactions returns 400 when the description is missing or blank")
+    void createBlankDescription() throws Exception {
+        String missing = """
+                {"transactionType": "INCOME", "amount": 10.00}
+                """;
+        String blank = """
+                {"transactionType": "INCOME", "amount": 10.00, "description": "   "}
+                """;
+
+        for (String body : new String[] {missing, blank}) {
+            mockMvc.perform(post("/transactions").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("description")));
+        }
+
+        verify(transactionService, never()).createTransaction(any(), any());
+    }
+
+    @Test
+    @DisplayName("PUT /transactions/{id} returns 400 when the description is longer than 255 characters")
+    void updateDescriptionTooLong() throws Exception {
+        String body = """
+                {"transactionType": "INCOME", "amount": 10.00, "description": "%s"}
+                """.formatted("a".repeat(256));
+
+        mockMvc.perform(put("/transactions/{id}", transactionId).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(containsString("description")));
+
+        verify(transactionService, never()).updateTransaction(any(), any(), any());
     }
 
     @Test

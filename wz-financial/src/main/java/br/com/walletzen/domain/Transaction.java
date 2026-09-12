@@ -4,12 +4,13 @@ import br.com.walletzen.enums.TransactionType;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Table(name = "WZ_TRANSACTION", indexes = {
-        @Index(name = "IDX_WZ_TRANSACTION_USER_CREATED", columnList = "user_id, created_at")
+        @Index(name = "IDX_WZ_TRANSACTION_USER_DATE", columnList = "user_id, transaction_date")
 })
 @Getter
 @Setter
@@ -33,6 +34,10 @@ public class Transaction {
     @Column(nullable = false)
     private UUID userId;
 
+    /** Data do lançamento (competência), escolhida pelo usuário. Filtros e ordenação usam esta data. */
+    @Column(nullable = false)
+    private LocalDate transactionDate;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -47,6 +52,9 @@ public class Transaction {
         createdAt = LocalDateTime.now();
         updatedAt = LocalDateTime.now();
         recordStatus = true;
+        if (transactionDate == null) {
+            transactionDate = LocalDate.now();
+        }
     }
 
     @PreUpdate

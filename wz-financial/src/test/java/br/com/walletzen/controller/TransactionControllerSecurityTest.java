@@ -15,6 +15,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -79,7 +80,7 @@ class TransactionControllerSecurityTest {
     void createForwardsCallerIdentity() throws Exception {
         UUID wzUserId = UUID.randomUUID();
         when(transactionService.createTransaction(any(), any(Caller.class)))
-                .thenReturn(new TransactionResponseDTO(UUID.randomUUID(), wzUserId, "INCOME", BigDecimal.TEN, "x", LocalDateTime.now(), true));
+                .thenReturn(new TransactionResponseDTO(UUID.randomUUID(), wzUserId, "INCOME", BigDecimal.TEN, "x", LocalDate.now(), LocalDateTime.now(), true));
 
         mockMvc.perform(post("/transactions")
                         .with(jwt().jwt(j -> j.claim("preferred_username", wzUserId.toString())))

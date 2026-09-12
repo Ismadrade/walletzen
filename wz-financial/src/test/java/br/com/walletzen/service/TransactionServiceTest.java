@@ -27,6 +27,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -79,7 +80,7 @@ class TransactionServiceTest {
     }
 
     private TransactionResponseDTO sampleResponse() {
-        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", LocalDateTime.now(), true);
+        return new TransactionResponseDTO(transactionId, userId, "INCOME", new BigDecimal("100.00"), "Salário", LocalDate.now(), LocalDateTime.now(), true);
     }
 
     @Test
@@ -98,10 +99,10 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("getTransactionsByUser with year + month queries the createdAt window [1st of month, 1st of next month)")
+    @DisplayName("getTransactionsByUser with year + month queries the transactionDate window [1st of month, 1st of next month)")
     void getTransactionsByUserMonthFilter() {
-        ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
-        ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDate> start = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> end = ArgumentCaptor.forClass(LocalDate.class);
         when(transactionRepository.findActiveByUser(
                 eq(userId), start.capture(), end.capture(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of(sampleTransaction())));
@@ -109,23 +110,23 @@ class TransactionServiceTest {
 
         transactionService.getTransactionsByUser(userId, 2026, 8, 0, 10, CALLER);
 
-        assertEquals(LocalDateTime.of(2026, 8, 1, 0, 0), start.getValue());
-        assertEquals(LocalDateTime.of(2026, 9, 1, 0, 0), end.getValue());
+        assertEquals(LocalDate.of(2026, 8, 1), start.getValue());
+        assertEquals(LocalDate.of(2026, 9, 1), end.getValue());
     }
 
     @Test
     @DisplayName("getTransactionsByUser with year only queries the whole calendar year")
     void getTransactionsByUserYearFilter() {
-        ArgumentCaptor<LocalDateTime> start = ArgumentCaptor.forClass(LocalDateTime.class);
-        ArgumentCaptor<LocalDateTime> end = ArgumentCaptor.forClass(LocalDateTime.class);
+        ArgumentCaptor<LocalDate> start = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<LocalDate> end = ArgumentCaptor.forClass(LocalDate.class);
         when(transactionRepository.findActiveByUser(
                 eq(userId), start.capture(), end.capture(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         transactionService.getTransactionsByUser(userId, 2026, null, 0, 10, CALLER);
 
-        assertEquals(LocalDateTime.of(2026, 1, 1, 0, 0), start.getValue());
-        assertEquals(LocalDateTime.of(2027, 1, 1, 0, 0), end.getValue());
+        assertEquals(LocalDate.of(2026, 1, 1), start.getValue());
+        assertEquals(LocalDate.of(2027, 1, 1), end.getValue());
     }
 
     @Test
@@ -187,7 +188,7 @@ class TransactionServiceTest {
     @Test
     @DisplayName("createTransaction forces recordStatus = true before persisting")
     void createTransaction() {
-        TransactionRequestDTO dto = new TransactionRequestDTO(userId, "INCOME", new BigDecimal("100.00"), "Salário");
+        TransactionRequestDTO dto = new TransactionRequestDTO(userId, "INCOME", new BigDecimal("100.00"), "Salário", null);
         Transaction mapped = Transaction.builder()
                 .id(transactionId)
                 .transactionType(TransactionType.INCOME)
@@ -210,7 +211,7 @@ class TransactionServiceTest {
     @DisplayName("createTransaction para um USER ignora o userId do body e usa o do token")
     void createTransactionUserOwnerComesFromToken() {
         UUID someoneElseId = UUID.randomUUID();
-        TransactionRequestDTO dto = new TransactionRequestDTO(someoneElseId, "INCOME", new BigDecimal("100.00"), "x");
+        TransactionRequestDTO dto = new TransactionRequestDTO(someoneElseId, "INCOME", new BigDecimal("100.00"), "x", null);
         when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().id(transactionId).transactionType(TransactionType.INCOME).build());
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
@@ -226,7 +227,7 @@ class TransactionServiceTest {
     @DisplayName("createTransaction para um ADMIN com userId no body cria em nome daquele usuário")
     void createTransactionAdminCanTargetAnotherUser() {
         UUID target = UUID.randomUUID();
-        TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("100.00"), "x");
+        TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("100.00"), "x", null);
         when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().id(transactionId).transactionType(TransactionType.INCOME).build());
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
@@ -242,7 +243,7 @@ class TransactionServiceTest {
     @DisplayName("createTransaction sem como determinar o dono -> IllegalArgumentException")
     void createTransactionWithoutOwner() {
         Caller callerSemWzUserId = new Caller(null, false); // ex.: usuário seed sem vínculo em wz_user
-        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("100.00"), "x");
+        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("100.00"), "x", null);
 
         assertThrows(IllegalArgumentException.class,
                 () -> transactionService.createTransaction(dto, callerSemWzUserId));
@@ -252,7 +253,7 @@ class TransactionServiceTest {
     @Test
     @DisplayName("createTransaction valida o dono resolvido em wz-user antes de gravar")
     void createTransactionValidatesOwner() {
-        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x");
+        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x", null);
         when(transactionMapper.toEntity(dto)).thenReturn(Transaction.builder().id(transactionId).transactionType(TransactionType.INCOME).build());
         when(transactionRepository.save(any(Transaction.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
@@ -267,7 +268,7 @@ class TransactionServiceTest {
     @DisplayName("createTransaction rejeita usuário inexistente/inativo sem gravar (422)")
     void createTransactionRejectsUnknownUser() {
         UUID target = UUID.randomUUID();
-        TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("10.00"), "x");
+        TransactionRequestDTO dto = new TransactionRequestDTO(target, "INCOME", new BigDecimal("10.00"), "x", null);
         doThrow(new UnknownUserException(target)).when(userValidationGateway).assertActiveUser(target);
 
         assertThrows(UnknownUserException.class, () -> transactionService.createTransaction(dto, ADMIN));
@@ -278,7 +279,7 @@ class TransactionServiceTest {
     @Test
     @DisplayName("createTransaction propaga indisponibilidade de wz-user (503), sem gravar")
     void createTransactionPropagatesServiceUnavailable() {
-        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x");
+        TransactionRequestDTO dto = new TransactionRequestDTO(null, "INCOME", new BigDecimal("10.00"), "x", null);
         doThrow(new UserServiceUnavailableException(userId, new RuntimeException("boom")))
                 .when(userValidationGateway).assertActiveUser(userId);
 
@@ -287,7 +288,7 @@ class TransactionServiceTest {
     }
 
     @Test
-    @DisplayName("updateTransaction changes type, amount and description of an active transaction")
+    @DisplayName("updateTransaction changes type, amount, description and date of an active transaction")
     void updateTransaction() {
         when(transactionRepository.findByIdAndRecordStatus(transactionId, true))
                 .thenReturn(Optional.of(sampleTransaction()));
@@ -295,7 +296,7 @@ class TransactionServiceTest {
         when(transactionMapper.toResponse(any(Transaction.class))).thenReturn(sampleResponse());
 
         transactionService.updateTransaction(transactionId,
-                new TransactionRequestDTO(userId, "expense", new BigDecimal("55.50"), "Mercado"), CALLER);
+                new TransactionRequestDTO(userId, "expense", new BigDecimal("55.50"), "Mercado", LocalDate.of(2026, 10, 5)), CALLER);
 
         ArgumentCaptor<Transaction> captor = ArgumentCaptor.forClass(Transaction.class);
         verify(transactionRepository).save(captor.capture());
@@ -303,6 +304,7 @@ class TransactionServiceTest {
         assertEquals(TransactionType.EXPENSE, saved.getTransactionType());
         assertEquals(new BigDecimal("55.50"), saved.getAmount());
         assertEquals("Mercado", saved.getDescription());
+        assertEquals(LocalDate.of(2026, 10, 5), saved.getTransactionDate());
         verify(outboxRecorder).record(eq("Transaction"), eq(transactionId.toString()),
                 eq("TransactionUpdated"), any(), any());
     }
@@ -313,7 +315,7 @@ class TransactionServiceTest {
         when(transactionRepository.findByIdAndRecordStatus(transactionId, true)).thenReturn(Optional.empty());
 
         assertThrows(TransactionNotFoundException.class, () -> transactionService.updateTransaction(transactionId,
-                new TransactionRequestDTO(userId, "INCOME", new BigDecimal("10.00"), "x"), CALLER));
+                new TransactionRequestDTO(userId, "INCOME", new BigDecimal("10.00"), "x", null), CALLER));
         verify(transactionRepository, never()).save(any());
     }
 
@@ -324,7 +326,7 @@ class TransactionServiceTest {
                 .thenReturn(Optional.of(sampleTransaction()));
 
         assertThrows(InvalidTransactionTypeException.class, () -> transactionService.updateTransaction(transactionId,
-                new TransactionRequestDTO(userId, "TRANSFER", new BigDecimal("10.00"), "x"), CALLER));
+                new TransactionRequestDTO(userId, "TRANSFER", new BigDecimal("10.00"), "x", null), CALLER));
         verify(transactionRepository, never()).save(any());
     }
 
@@ -412,7 +414,7 @@ class TransactionServiceTest {
 
         assertThrows(org.springframework.security.access.AccessDeniedException.class,
                 () -> transactionService.updateTransaction(transactionId,
-                        new TransactionRequestDTO(userId, "INCOME", new BigDecimal("1.00"), "x"), OTHER));
+                        new TransactionRequestDTO(userId, "INCOME", new BigDecimal("1.00"), "x", null), OTHER));
         verify(transactionRepository, never()).save(any());
     }
 }

@@ -25,7 +25,7 @@ class TransactionMapperTest {
         UUID userId = UUID.randomUUID();
 
         Transaction entity = mapper.toEntity(
-                new TransactionRequestDTO(userId, "income", new BigDecimal("10.00"), "Freelance"));
+                new TransactionRequestDTO(userId, "income", new BigDecimal("10.00"), "Freelance", null));
 
         assertEquals(TransactionType.INCOME, entity.getTransactionType());
         assertEquals(userId, entity.getUserId());
@@ -37,7 +37,7 @@ class TransactionMapperTest {
     @DisplayName("toEntity rejects an unknown transaction type")
     void toEntityInvalidType() {
         assertThrows(InvalidTransactionTypeException.class, () -> mapper.toEntity(
-                new TransactionRequestDTO(UUID.randomUUID(), "PIX", new BigDecimal("10.00"), "x")));
+                new TransactionRequestDTO(UUID.randomUUID(), "PIX", new BigDecimal("10.00"), "x", null)));
     }
 
     @Test

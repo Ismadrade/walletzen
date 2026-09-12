@@ -372,6 +372,7 @@ Chamada direta ao serviço usa o context path próprio; via gateway, use o host
 | Método | Caminho            | Descrição |
 | ------ | ------------------ | --------- |
 | GET    | `/user/{userId}`   | Lista paginada das transações ativas do usuário. Query params: `page` (0), `size` (10, máx. 100), `year`, `month` (1-12, exige `year`). Filtra e ordena pela data do lançamento (`transactionDate` desc, desempate por `createdAt`). **Dono ou ADMIN** (`403` para outro usuário). |
+| GET    | `/user/{userId}/summary` | Totais do período (mesmos filtros `year`/`month`): `income`, `expense`, `balance`, `expenseCount`, `averageExpense`. Calculados no banco, independem da paginação. **Dono ou ADMIN**. |
 | GET    | `/{id}`            | Busca transação ativa por `UUID`. **Dono ou ADMIN**. |
 | POST   | `/`                | Cria transação. Body `TransactionRequestDTO` (`amount`/`transactionType`/`description` obrigatórios, `amount` positivo, `description` até 255 caracteres; `transactionDate` `yyyy-MM-dd` opcional, padrão = dia da gravação). `201 Created`. **O dono é sempre quem está autenticado** — `userId` no body é ignorado para um `USER` comum; só um `ADMIN` pode usá-lo para lançar em nome de outra pessoa. Sem `userId` resolvível → `400`. O dono é validado em `wz-user` (ver *Comunicação síncrona*): inexistente/inativo → `422`; `wz-user` fora do ar → `503`. |
 | PUT    | `/{id}`            | Atualiza `transactionType`, `amount`, `description` e `transactionDate` (omitida = mantém a atual). **Dono ou ADMIN**. |

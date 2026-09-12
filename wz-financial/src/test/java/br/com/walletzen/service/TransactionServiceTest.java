@@ -5,6 +5,7 @@ import br.com.walletzen.domain.Transaction;
 import br.com.walletzen.dto.request.TransactionRequestDTO;
 import br.com.walletzen.dto.response.PageResponseDTO;
 import br.com.walletzen.dto.response.TransactionResponseDTO;
+import br.com.walletzen.dto.response.TransactionSummaryDTO;
 import br.com.walletzen.enums.TransactionType;
 import br.com.walletzen.exception.InvalidFilterException;
 import br.com.walletzen.exception.InvalidTransactionTypeException;
@@ -127,6 +128,51 @@ class TransactionServiceTest {
 
         assertEquals(LocalDate.of(2026, 1, 1), start.getValue());
         assertEquals(LocalDate.of(2027, 1, 1), end.getValue());
+    }
+
+    private TransactionRepository.TypeTotal typeTotal(TransactionType type, String total, long quantity) {
+        return new TransactionRepository.TypeTotal() {
+            @Override public TransactionType getType() { return type; }
+            @Override public BigDecimal getTotal() { return new BigDecimal(total); }
+            @Override public long getQuantity() { return quantity; }
+        };
+    }
+
+    @Test
+    @DisplayName("getSummaryByUser adds up income and expense of the period and averages the expenses")
+    void getSummaryByUser() {
+        when(transactionRepository.sumActiveByUserGroupedByType(userId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 9, 1)))
+                .thenReturn(List.of(
+                        typeTotal(TransactionType.INCOME, "8700.00", 2),
+                        typeTotal(TransactionType.EXPENSE, "2670.80", 3)));
+
+        TransactionSummaryDTO summary = transactionService.getSummaryByUser(userId, 2026, 8, CALLER);
+
+        assertEquals(new BigDecimal("8700.00"), summary.income());
+        assertEquals(new BigDecimal("2670.80"), summary.expense());
+        assertEquals(new BigDecimal("6029.20"), summary.balance());
+        assertEquals(3, summary.expenseCount());
+        assertEquals(new BigDecimal("890.27"), summary.averageExpense());
+    }
+
+    @Test
+    @DisplayName("getSummaryByUser returns zeros when the period has no transactions")
+    void getSummaryByUserEmpty() {
+        when(transactionRepository.sumActiveByUserGroupedByType(eq(userId), isNull(), isNull())).thenReturn(List.of());
+
+        TransactionSummaryDTO summary = transactionService.getSummaryByUser(userId, null, null, CALLER);
+
+        assertEquals(0, summary.balance().signum());
+        assertEquals(0, summary.expenseCount());
+        assertEquals(0, summary.averageExpense().signum());
+    }
+
+    @Test
+    @DisplayName("getSummaryByUser rejects a caller that is not the owner")
+    void getSummaryByUserNotOwner() {
+        assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                () -> transactionService.getSummaryByUser(userId, 2026, 8, new Caller(UUID.randomUUID(), false)));
+        verifyNoInteractions(transactionRepository);
     }
 
     @Test

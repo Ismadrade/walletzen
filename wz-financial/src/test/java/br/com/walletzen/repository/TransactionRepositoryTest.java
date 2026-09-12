@@ -13,7 +13,10 @@ import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -96,6 +99,31 @@ class TransactionRepositoryTest {
                 LocalDate.of(2026, 8, 1), PageRequest.of(0, 10));
 
         assertEquals(1, page.getTotalElements());
+    }
+
+    @Test
+    @DisplayName("summary sums and counts active transactions per type inside the window")
+    void sumPerType() {
+        Transaction expenseA = build(LocalDate.of(2026, 8, 15));
+        expenseA.setTransactionType(TransactionType.EXPENSE);
+        expenseA.setAmount(new BigDecimal("5.50"));
+        Transaction expenseB = build(LocalDate.of(2026, 8, 20));
+        expenseB.setTransactionType(TransactionType.EXPENSE);
+        expenseB.setAmount(new BigDecimal("4.50"));
+        em.persistAndFlush(expenseA);
+        em.persistAndFlush(expenseB);
+        em.clear();
+
+        Map<TransactionType, TransactionRepository.TypeTotal> totals = repository
+                .sumActiveByUserGroupedByType(userId, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 9, 1))
+                .stream()
+                .collect(Collectors.toMap(TransactionRepository.TypeTotal::getType, Function.identity()));
+
+        // Aug: 2 active incomes of 10.00 (the inactive one is ignored) + the 2 expenses above
+        assertEquals(0, new BigDecimal("20.00").compareTo(totals.get(TransactionType.INCOME).getTotal()));
+        assertEquals(2, totals.get(TransactionType.INCOME).getQuantity());
+        assertEquals(0, new BigDecimal("10.00").compareTo(totals.get(TransactionType.EXPENSE).getTotal()));
+        assertEquals(2, totals.get(TransactionType.EXPENSE).getQuantity());
     }
 
     @Test

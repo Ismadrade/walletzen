@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-server-env
+  namespace: walletzen
+data:
+  SPRING_PROFILES_ACTIVE: "native"
+  JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75"

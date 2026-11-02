@@ -1,0 +1,48 @@
+apiVersion: apps/v1          # repare: não é mais v1
+kind: Deployment
+metadata:
+  name: config-server
+  namespace: walletzen
+spec:
+  # 1 réplica basta no cluster de estudo; em produção o mínimo é 2 —
+  # com uma só, há alguns segundos sem ninguém atendendo a cada troca de pod.  
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-server     # (A)
+  template:                  # daqui para baixo é o molde do Pod
+    metadata:
+      labels:
+        app: config-server   # (B) — tem que ser igual ao (A)
+    spec:
+      containers:
+        - name: config-server
+          image: walletzen/config-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8888
+          envFrom:
+            - configMapRef:
+                name: config-server-env
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "320Mi"
+            limits:
+              memory: "512Mi"
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8888
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8888
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8888
+            periodSeconds: 20
